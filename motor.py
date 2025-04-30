@@ -205,11 +205,25 @@ class Motor:
         motors = list_thorlabs_motors()
         return next((motor for motor in motors if str(motor.get_device_info().serial_no) == str(self.serial_no)), None)
 
-
 if __name__ == '__main__':
-    motor = Motor(serial_number=55356974)
-    print(list_thorlabs_motors())
+    motor = Motor(serial_number=55353314)
+    # motor.move_to(position=0)
+    # print('Resetting position')
+    # print(motor.position)
+    # time.sleep(1)
+    # start_time = time.time()
 
-    # motor.move_by(angle=-25)
-    # motor.move_to(position=10)
-    print(motor._motor.get_position())
+    # motor._motor.jog(direction='+')
+    # print('Rotating +')
+    # while time.time() < start_time + 5:
+    #     print(motor._motor.get_position())
+    #     time.sleep(1)
+
+    # motor._motor.jog(direction='-')
+    # print('Rotating -')
+    # while time.time() < start_time + 10:
+    #     print(motor._motor.get_position())
+    #     time.sleep(1)
+    print(motor._motor.get_jog_parameters())
+
+    # motor._motor.stop()
