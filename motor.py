@@ -207,23 +207,33 @@ class Motor:
 
 if __name__ == '__main__':
     motor = Motor(serial_number=55353314)
-    # motor.move_to(position=0)
-    # print('Resetting position')
-    # print(motor.position)
-    # time.sleep(1)
-    # start_time = time.time()
-
-    # motor._motor.jog(direction='+')
-    # print('Rotating +')
-    # while time.time() < start_time + 5:
-    #     print(motor._motor.get_position())
-    #     time.sleep(1)
-
-    # motor._motor.jog(direction='-')
-    # print('Rotating -')
-    # while time.time() < start_time + 10:
-    #     print(motor._motor.get_position())
-    #     time.sleep(1)
     print(motor._motor.get_jog_parameters())
+    time.sleep(1)
 
-    # motor._motor.stop()
+    print('Moving motor: 10')
+    motor._motor.setup_jog(
+        mode='continuous',
+        max_velocity=10,
+    )
+    motor._motor.jog(
+        direction='-',
+        kind='builtin'
+    )
+    time.sleep(5)
+
+    motor._motor.stop()
+    time.sleep(1)
+
+    print('Moving motor: 20')
+    motor._motor.setup_jog(
+        mode='continuous',
+        max_velocity=20
+    )
+    print(motor._motor.get_jog_parameters())
+    motor._motor.jog(
+        direction='-',
+        kind='builtin'
+    )
+    time.sleep(5)
+
+    motor._motor.stop()
