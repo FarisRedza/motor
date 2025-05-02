@@ -4,6 +4,7 @@ import threading
 import time
 import math
 import enum
+import dataclasses
 
 import pylablib.devices.Thorlabs
 
@@ -52,6 +53,13 @@ def list_thorlabs_motors_windows() -> list[pylablib.devices.Thorlabs.KinesisMoto
 
     return motors
 
+@dataclasses.dataclass
+class DeviceInfo:
+    device_name: str
+    model: str
+    serial_number: str
+    firmware_version: str
+
 class Motor:
     class MotorDirection(enum.Enum):
         FORWARD = '+'
@@ -66,10 +74,19 @@ class Motor:
         self._motor = self._get_motor()
         if self._motor == None:
             raise NotImplementedError(f'Unable to find motor: {serial_number}')
-        
+
+        device_info = self._motor.get_device_info()
+        self.device_info = DeviceInfo(
+            device_name=device_info.notes,
+            model=device_info.model_no,
+            serial_number=device_info.serial_no,
+            firmware_version=device_info.fw_ver
+        )
+
         self.position = self._motor.get_position()
         self.motor_thread = None
         self.motor_direction = self.MotorDirection.IDLE
+        self.step_size: float = 5
         self.acceleration: float = 5
         self.max_velocity: float = 5
 
