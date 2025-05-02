@@ -3,6 +3,7 @@ import platform
 import threading
 import time
 import math
+import enum
 
 import pylablib.devices.Thorlabs
 
@@ -52,16 +53,26 @@ def list_thorlabs_motors_windows() -> list[pylablib.devices.Thorlabs.KinesisMoto
     return motors
 
 class Motor:
+    class MotorDirection(enum.Enum):
+        FORWARD = '+'
+        BACKWARD = '-'
+        IDLE = None
+
     def __init__(
             self,
-            serial_number: str | float
+            serial_number: str
     ):
         self.serial_no = serial_number
         self._motor = self._get_motor()
         if self._motor == None:
             raise NotImplementedError(f'Unable to find motor: {serial_number}')
+        
         self.position = self._motor.get_position()
         self.motor_thread = None
+        self.motor_direction = self.MotorDirection.IDLE
+        self.acceleration: float = 5
+        self.max_velocity: float = 5
+
         
     def move_by(
             self,
