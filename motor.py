@@ -89,7 +89,6 @@ class Motor:
         self.step_size: float = 5
         self.acceleration: float = 5
         self.max_velocity: float = 5
-
         
     def move_by(
             self,
