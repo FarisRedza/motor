@@ -60,11 +60,14 @@ class DeviceInfo:
     serial_number: str
     firmware_version: str
 
+class MotorDirection(enum.Enum):
+    FORWARD = '+'
+    BACKWARD = '-'
+    IDLE = None
+
 class Motor:
-    class MotorDirection(enum.Enum):
-        FORWARD = '+'
-        BACKWARD = '-'
-        IDLE = None
+    MAX_ACCELERATION = 20.0
+    MAX_VELOCITY = 25.0
 
     def __init__(
             self,
@@ -85,7 +88,7 @@ class Motor:
 
         self.position = self._motor.get_position()
         self.motor_thread = None
-        self.motor_direction = self.MotorDirection.IDLE
+        self.direction = MotorDirection.IDLE
         self.step_size: float = 5
         self.acceleration: float = 5
         self.max_velocity: float = 5
@@ -93,20 +96,34 @@ class Motor:
     def move_by(
             self,
             angle: float,
-            acceleration: float = 20,
-            max_velocity: float = 25
+            acceleration: float = MAX_ACCELERATION,
+            max_velocity: float = MAX_VELOCITY
     ) -> bool:
         self._motor.setup_velocity(
             acceleration=acceleration,
             max_velocity=max_velocity,
             scale=True
         )
+
+        if angle > 0:
+            self.direction = MotorDirection.FORWARD
+        elif angle < 0:
+            self.direction = MotorDirection.BACKWARD
+        else:
+            self.direction = MotorDirection.IDLE
+
+        if acceleration != self.acceleration:
+            self.acceleration = acceleration
+        if max_velocity != self.max_velocity:
+            self.max_velocity = max_velocity
+
         sleep_time = self._rotation_time(
             angle=angle,
             acceleration=acceleration,
             max_velocity=max_velocity,
             degrees=True
         )
+
         try:
             self._motor.move_by(distance=angle)
         except Exception as e:
@@ -122,24 +139,39 @@ class Motor:
                 time.sleep(0.01)
 
             self.position = self._motor.get_position()
+            self.direction = MotorDirection.IDLE
         return True
 
     def move_to(
             self,
             position: float,
-            acceleration: float = 20,
-            max_velocity: float = 25
+            acceleration: float = MAX_ACCELERATION,
+            max_velocity: float = MAX_VELOCITY
     ) -> bool:
         self._motor.setup_velocity(
             acceleration=acceleration,
             max_velocity=max_velocity,
             scale=True
         )
+
         # move_to doesn't seem to take shortest route
-        # angle_diff = abs((position - self._motor.get_position() + 180) % 360 - 180)
-        angle_diff = abs(self._motor.get_position() - position)
+        # angle = abs((position - self._motor.get_position() + 180) % 360 - 180)
+        angle = self._motor.get_position() - position
+
+        if angle > 0:
+            self.direction = MotorDirection.FORWARD
+        elif angle < 0:
+            self.direction = MotorDirection.BACKWARD
+        else:
+            self.direction = MotorDirection.IDLE
+
+        if acceleration != self.acceleration:
+            self.acceleration = acceleration
+        if max_velocity != self.max_velocity:
+            self.max_velocity = max_velocity
+
         sleep_time = self._rotation_time(
-            angle=angle_diff,
+            angle=abs(angle),
             acceleration=acceleration,
             max_velocity=max_velocity,
             degrees=True
@@ -159,13 +191,14 @@ class Motor:
                 time.sleep(0.01)
 
             self.position = self._motor.get_position()
+            self.direction = MotorDirection.IDLE
         return True
     
     def threaded_move_by(
             self,
             angle: float,
-            acceleration: float = 20,
-            max_velocity: float = 25
+            acceleration: float = MAX_ACCELERATION,
+            max_velocity: float = MAX_VELOCITY
     ) -> None:
         if self.motor_thread is None or not self.motor_thread.is_alive():
             self.motor_thread = threading.Thread(
@@ -183,8 +216,8 @@ class Motor:
     def threaded_move_to(
             self,
             position: float,
-            acceleration: float = 20,
-            max_velocity: float = 25
+            acceleration: float = MAX_ACCELERATION,
+            max_velocity: float = MAX_VELOCITY
     ) -> None:
         if self.motor_thread is None or not self.motor_thread.is_alive():
             self.motor_thread = threading.Thread(
@@ -198,6 +231,32 @@ class Motor:
             self.motor_thread.start()
         else:
             print('Warning: Motor is busy')
+
+    def jog(
+            self,
+            direction: MotorDirection,
+            acceleration: float = MAX_ACCELERATION,
+            max_velocity: float = MAX_VELOCITY
+    ):
+        if acceleration != self.acceleration or max_velocity != self.max_velocity:
+            self.acceleration = acceleration
+            self.max_velocity = max_velocity
+            self._motor.setup_jog(
+                mode='continuous',
+                acceleration=self.acceleration,
+                max_velocity=self.max_velocity
+            )
+        if direction != self.direction:
+            self.direction = direction
+            self._motor.jog(
+                direction=self.direction.value,
+                kind='builtin'
+            )
+
+    def stop(self) -> None:
+        self.direction = MotorDirection.IDLE
+        self._motor.stop()
+        self.position = self._motor.get_position()
 
     def _rotation_time(
             self,
@@ -234,33 +293,13 @@ class Motor:
 
 if __name__ == '__main__':
     motor = Motor(serial_number=55353314)
-    print(motor._motor.get_jog_parameters())
+    print(motor.direction)
+    print(motor.position)
     time.sleep(1)
-
-    print('Moving motor: 10')
-    motor._motor.setup_jog(
-        mode='continuous',
-        max_velocity=10,
-    )
-    motor._motor.jog(
-        direction='-',
-        kind='builtin'
-    )
-    time.sleep(5)
-
-    motor._motor.stop()
+    motor.jog(direction=MotorDirection.FORWARD)
     time.sleep(1)
-
-    print('Moving motor: 20')
-    motor._motor.setup_jog(
-        mode='continuous',
-        max_velocity=20
-    )
-    print(motor._motor.get_jog_parameters())
-    motor._motor.jog(
-        direction='-',
-        kind='builtin'
-    )
-    time.sleep(5)
-
-    motor._motor.stop()
+    print(motor.direction)
+    time.sleep(1)
+    motor.stop()
+    print(motor.direction)
+    print(motor.position)
