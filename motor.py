@@ -8,6 +8,9 @@ import dataclasses
 
 import pylablib.devices.Thorlabs
 
+MAX_ACCELERATION = 20.0
+MAX_VELOCITY = 25.0
+
 def list_thorlabs_motors() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
     system = platform.system()
     match system:
@@ -66,13 +69,10 @@ class MotorDirection(enum.Enum):
     IDLE = None
 
 class Motor:
-    MAX_ACCELERATION = 20.0
-    MAX_VELOCITY = 25.0
-
     def __init__(
             self,
             serial_number: str
-    ):
+    ) -> None:
         self.serial_no = serial_number
         self._motor = self._get_motor()
         if self._motor == None:
@@ -237,7 +237,7 @@ class Motor:
             direction: MotorDirection,
             acceleration: float = MAX_ACCELERATION,
             max_velocity: float = MAX_VELOCITY
-    ):
+    ) -> None:
         if acceleration != self.acceleration or max_velocity != self.max_velocity:
             self.acceleration = acceleration
             self.max_velocity = max_velocity
