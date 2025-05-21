@@ -88,6 +88,7 @@ class Motor:
 
         self.position = self._motor.get_position()
         self.motor_thread = None
+        self.is_moving: bool = False
         self.direction = MotorDirection.IDLE
         self.step_size: float = 5
         self.acceleration: float = 5
@@ -99,6 +100,7 @@ class Motor:
             acceleration: float = MAX_ACCELERATION,
             max_velocity: float = MAX_VELOCITY
     ) -> bool:
+        self.is_moving = True
         self._motor.setup_velocity(
             acceleration=acceleration,
             max_velocity=max_velocity,
@@ -140,6 +142,7 @@ class Motor:
 
             self.position = self._motor.get_position()
             self.direction = MotorDirection.IDLE
+        self.is_moving = False
         return True
 
     def move_to(
@@ -148,6 +151,7 @@ class Motor:
             acceleration: float = MAX_ACCELERATION,
             max_velocity: float = MAX_VELOCITY
     ) -> bool:
+        self.is_moving = True
         self._motor.setup_velocity(
             acceleration=acceleration,
             max_velocity=max_velocity,
@@ -192,6 +196,7 @@ class Motor:
 
             self.position = self._motor.get_position()
             self.direction = MotorDirection.IDLE
+        self.is_moving = False
         return True
     
     def threaded_move_by(
@@ -248,10 +253,10 @@ class Motor:
             )
         if direction != self.direction:
             self.direction = direction
-            self._motor.jog(
-                direction=self.direction.value,
-                kind='builtin'
-            )
+        self._motor.jog(
+            direction=self.direction.value,
+            kind='builtin'
+        )
 
     def stop(self) -> None:
         self.direction = MotorDirection.IDLE
@@ -292,7 +297,7 @@ class Motor:
         return next((motor for motor in motors if str(motor.get_device_info().serial_no) == str(self.serial_no)), None)
 
 if __name__ == '__main__':
-    motor = Motor(serial_number=55353314)
+    motor = Motor(serial_number='55353314')
     print(motor.direction)
     print(motor.position)
     time.sleep(1)
