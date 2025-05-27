@@ -82,7 +82,7 @@ class Motor:
         self.device_info = DeviceInfo(
             device_name=device_info.notes,
             model=device_info.model_no,
-            serial_number=device_info.serial_no,
+            serial_number=str(device_info.serial_no),
             firmware_version=device_info.fw_ver
         )
 
