@@ -97,7 +97,7 @@ class Motor:
         self.max_velocity: float = 5
         self._position_polling = 0.1
         self.position = self._motor.get_position()
-        
+
     def _get_motor_position(self):
         with self._position_lock:
             self.position = self._motor.get_position()
