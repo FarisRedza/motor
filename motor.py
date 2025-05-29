@@ -11,6 +11,18 @@ import pylablib.devices.Thorlabs
 MAX_ACCELERATION = 20.0
 MAX_VELOCITY = 25.0
 
+@dataclasses.dataclass
+class DeviceInfo:
+    device_name: str
+    model: str
+    serial_number: str
+    firmware_version: str
+
+class MotorDirection(enum.Enum):
+    FORWARD = '+'
+    BACKWARD = '-'
+    IDLE = None
+
 def list_thorlabs_motors() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
     system = platform.system()
     match system:
@@ -55,18 +67,6 @@ def list_thorlabs_motors_windows() -> list[pylablib.devices.Thorlabs.KinesisMoto
             continue
 
     return motors
-
-@dataclasses.dataclass
-class DeviceInfo:
-    device_name: str
-    model: str
-    serial_number: str
-    firmware_version: str
-
-class MotorDirection(enum.Enum):
-    FORWARD = '+'
-    BACKWARD = '-'
-    IDLE = None
 
 class Motor:
     def __init__(
