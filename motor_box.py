@@ -13,7 +13,7 @@ sys.path.append(
         os.path.pardir
     ))
 )
-import motor.motor as thorlabs_motor
+import motor.thorlabs_motor as thorlabs_motor
 
 class MotorControls(Adw.PreferencesGroup):
     def __init__(

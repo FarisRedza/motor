@@ -14,7 +14,7 @@ sys.path.append(
         os.path.pardir
     ))
 )
-import motor.motor as thorlabs_motor
+import motor.thorlabs_motor as thorlabs_motor
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, *args, **kwargs):
