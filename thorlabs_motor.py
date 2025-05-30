@@ -19,8 +19,8 @@ class DeviceInfo:
     firmware_version: str
 
 class MotorDirection(enum.Enum):
-    FORWARD = '+'
-    BACKWARD = '-'
+    FORWARD = '-'
+    BACKWARD = '+'
     IDLE = None
 
 def list_motors() -> list[DeviceInfo]:
