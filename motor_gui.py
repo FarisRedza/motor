@@ -6,15 +6,8 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw
 
-import motor_box as motor_box
-
-sys.path.append(
-    os.path.abspath(os.path.join(
-        os.path.dirname(__file__),
-        os.path.pardir
-    ))
-)
-import motor.thorlabs_motor as thorlabs_motor
+import motor_box
+import thorlabs_motor
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, *args, **kwargs):
@@ -32,10 +25,12 @@ class MainWindow(Adw.ApplicationWindow):
         header_bar = Adw.HeaderBar()
         main_box.append(child=header_bar)
 
-        self.main_stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE)
+        self.main_stack = Gtk.Stack(
+            transition_type=Gtk.StackTransitionType.CROSSFADE
+        )
         main_box.append(child=self.main_stack)
 
-        motors = thorlabs_motor.list_thorlabs_motors()
+        motors = thorlabs_motor.list_motors()
         if len(motors) == 0:
             main_box.append(
                 child=Gtk.Label(
@@ -56,8 +51,8 @@ class MainWindow(Adw.ApplicationWindow):
             add_motor_page.add(add_motor_group)
             for i in motors:
                 add_motor_row = Adw.ActionRow(
-                    title=i.get_device_info().notes,
-                    subtitle=i.get_device_info().serial_no
+                    title=i.device_name,
+                    subtitle=i.serial_number
                 )
                 add_motor_group.add(add_motor_row)
                 add_motor_button = Gtk.Button(
@@ -67,7 +62,7 @@ class MainWindow(Adw.ApplicationWindow):
                 add_motor_button.connect(
                     'clicked',
                     lambda widget,
-                    serial_number=i.get_device_info().serial_no: self.on_add_motor(
+                    serial_number=i.serial_number: self.on_add_motor(
                         widget,
                         serial_number
                     )

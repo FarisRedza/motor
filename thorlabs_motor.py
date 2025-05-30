@@ -23,7 +23,7 @@ class MotorDirection(enum.Enum):
     BACKWARD = '-'
     IDLE = None
 
-def list_thorlabs_motors() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
+def list_motors() -> list[DeviceInfo]:
     system = platform.system()
     match system:
         case 'Linux':
@@ -33,7 +33,7 @@ def list_thorlabs_motors() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
         case _:
             raise NotImplementedError(f'Unsupported system: {system}')
 
-def list_thorlabs_motors_linux() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
+def list_thorlabs_motors_linux() -> list[DeviceInfo]:
     device_path = pathlib.Path('/dev/serial/by-id')
     if not device_path.exists():
         return []
@@ -42,27 +42,33 @@ def list_thorlabs_motors_linux() -> list[pylablib.devices.Thorlabs.KinesisMotor]
     for symlink in device_path.iterdir():
         if 'Thorlabs' in symlink.name:
             try:
-                motors.append(
-                    pylablib.devices.Thorlabs.KinesisMotor(
-                        conn=str(symlink.resolve()),
-                        scale='stage'
-                    )
-                )
+                device_info = pylablib.devices.Thorlabs.KinesisMotor(
+                    conn=str(symlink.resolve())
+                ).get_device_info()
+                motors.append(DeviceInfo(
+                    device_name=device_info.notes,
+                    model=device_info.model_no,
+                    serial_number=str(device_info.serial_no),
+                    firmware_version=device_info.fw_ver
+                ))
             except IndexError:
                 continue
 
     return motors
 
-def list_thorlabs_motors_windows() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
+def list_thorlabs_motors_windows() -> list[DeviceInfo]:
     motors = []
     for device in pylablib.devices.Thorlabs.list_kinesis_devices():
         try:
-            motors.append(
-                pylablib.devices.Thorlabs.KinesisMotor(
-                    conn=device[0],
-                    scale='stage'
-                )
-            )
+            device_info = pylablib.devices.Thorlabs.KinesisMotor(
+                conn=device[0],
+            ).get_device_info()
+            motors.append(DeviceInfo(
+                device_name=device_info.notes,
+                model=device_info.model_no,
+                serial_number=str(device_info.serial_no),
+                firmware_version=device_info.fw_ver
+            ))
         except IndexError:
             continue
 
@@ -74,7 +80,7 @@ class Motor:
             serial_number: str
     ) -> None:
         self.serial_no = serial_number
-        self._motor = self._get_motor()
+        self._motor = self._get_motor(serial_number=serial_number)
         if self._motor == None:
             raise NotImplementedError(f'Unable to find motor: {serial_number}')
 
@@ -296,25 +302,50 @@ class Motor:
 
         return total_time
     
-    def _get_motor(self) -> pylablib.devices.Thorlabs.KinesisMotor:
-        motors = list_thorlabs_motors()
-        try:
-            return next(
-                (motor for motor in motors if str(
-                    motor.get_device_info().serial_no
-                ) == str(self.serial_no))
-            )
-        except:
-            print(f'Could not find motor {self.serial_no}')
+    def _get_motor(
+            self,
+            serial_number: str
+    ) -> pylablib.devices.Thorlabs.KinesisMotor:
+        device_path = pathlib.Path('/dev/serial/by-id')
+        if not device_path.exists():
             raise Exception
+        
+        motors: list[DeviceInfo] = []
+        for symlink in device_path.iterdir():
+            if 'Thorlabs' in symlink.name:
+                try:
+                    device_info = pylablib.devices.Thorlabs.KinesisMotor(
+                        conn=str(symlink.resolve())
+                    ).get_device_info()
+                    motors.append(DeviceInfo(
+                        device_name=device_info.notes,
+                        model=device_info.model_no,
+                        serial_number=str(device_info.serial_no),
+                        firmware_version=device_info.fw_ver
+                    ))
+                except IndexError:
+                    continue
+
+        symlinks = [path for path in device_path.iterdir()]
+        try:
+            serial_numbers = [motor.serial_number for motor in motors]
+            index = serial_numbers.index(serial_number)
+        except:
+            print(f'Could not find motor {serial_number}')
+            raise Exception
+        else:
+            return pylablib.devices.Thorlabs.KinesisMotor(
+                conn=str(symlinks[index].resolve()),
+                scale='stage'
+            )
 
 def get_motors() -> list[Motor]:
-    kinesis_motors = list_thorlabs_motors()
+    kinesis_motors = list_motors()
     motors: list[Motor] = []
     for motor in kinesis_motors:
         motors.append(
             Motor(
-                serial_number=str(motor.get_device_info().serial_no)
+                serial_number=str(motor.serial_number)
             )
         )
     return motors
