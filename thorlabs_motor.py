@@ -94,8 +94,8 @@ class Motor:
 
         self._device_lock = threading.Lock()
         self._position_lock = threading.Lock()
-        self._position_thread = None
-        self.motor_thread = None
+        self._position_thread: threading.Thread | None = None
+        self.motor_thread: threading.Thread | None = None
         self.is_moving: bool = False
         self.direction = MotorDirection.IDLE
         self.step_size: float = 5
