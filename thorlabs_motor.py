@@ -91,39 +91,57 @@ class Motor:
             serial_number=str(device_info.serial_no),
             firmware_version=device_info.fw_ver
         )
-
-        self._device_lock = threading.Lock()
-        self._position_lock = threading.Lock()
+        self._lock = threading.Lock()
         self._position_thread: threading.Thread | None = None
-        self.motor_thread: threading.Thread | None = None
+        self._movement_thread: threading.Thread | None = None
         self.is_moving: bool = False
         self.direction = MotorDirection.IDLE
         self.step_size: float = 5
-        self.acceleration: float = 5
-        self.max_velocity: float = 5
+        self.acceleration: float = MAX_ACCELERATION
+        self.max_velocity: float = MAX_VELOCITY
         self._position_polling = 0.1
         self.position = self._motor.get_position()
 
-    def _get_motor_position(self):
-        with self._position_lock:
-            self.position = self._motor.get_position()
+    def _get_motor(
+            self,
+            serial_number: str
+    ) -> pylablib.devices.Thorlabs.KinesisMotor:
+        device_path = pathlib.Path('/dev/serial/by-id')
+        if not device_path.exists():
+            raise RuntimeError(f'{str(device_path)} does not exist. Are any devices plugged in?')
+        
+        for symlink in device_path.iterdir():
+            if 'Thorlabs' in symlink.name:
+                try:
+                    motor = pylablib.devices.Thorlabs.KinesisMotor(
+                        conn=str(symlink.resolve())
+                    )
+                    if str(motor.get_device_info().serial_no) == serial_number:
+                        return motor
+                except Exception:
+                    continue
+        raise RuntimeError(f'Motor {serial_number} not found')
+
+    # def _get_motor_position(self):
+    #     with self._lock:
+    #         self.position = self._motor.get_position()
         
     def _track_position(self):
         while self.is_moving == True:
             time.sleep(self._position_polling)
-            self._get_motor_position()
+            with self._lock:
+                self.position = self._motor.get_position()
 
     def _start_tracking_position(self):
-        if self.is_moving == False:
-            self.is_moving = True
-            self._position_thread = threading.Thread(
-                target=self._track_position
-            )
-            self._position_thread.start()
+        self.is_moving = True
+        self._position_thread = threading.Thread(
+            target=self._track_position
+        )
+        self._position_thread.start()
 
     def _stop_tracking_position(self):
-        if self.is_moving == True:
-            self.is_moving = False
+        self.is_moving = False
+        if self._position_thread:
             self._position_thread.join()
 
     def move_by(
@@ -172,40 +190,41 @@ class Motor:
             acceleration: float = MAX_ACCELERATION,
             max_velocity: float = MAX_VELOCITY
     ) -> bool:
-        self._start_tracking_position()
-        # move_to doesn't seem to take shortest route
-        # angle = abs((position - self._motor.get_position() + 180) % 360 - 180)
-        # angle = self._motor.get_position() - position
-        angle = self.position - position
+        with self._lock:
+            self._start_tracking_position()
+            # move_to doesn't seem to take shortest route
+            # angle = abs((position - self._motor.get_position() + 180) % 360 - 180)
+            # angle = self._motor.get_position() - position
+            angle = self.position - position
 
-        if angle > 0:
-            self.direction = MotorDirection.FORWARD
-        elif angle < 0:
-            self.direction = MotorDirection.BACKWARD
-        else:
-            self.direction = MotorDirection.IDLE
+            if angle > 0:
+                self.direction = MotorDirection.FORWARD
+            elif angle < 0:
+                self.direction = MotorDirection.BACKWARD
+            else:
+                self.direction = MotorDirection.IDLE
 
-        if acceleration != self.acceleration or max_velocity != self.max_velocity:
-            self.acceleration = acceleration
-            self.max_velocity = max_velocity
-            self._motor.setup_velocity(
-                acceleration=self.acceleration,
-                max_velocity=self.max_velocity,
-                scale=True
+            if acceleration != self.acceleration or max_velocity != self.max_velocity:
+                self.acceleration = acceleration
+                self.max_velocity = max_velocity
+                self._motor.setup_velocity(
+                    acceleration=self.acceleration,
+                    max_velocity=self.max_velocity,
+                    scale=True
+                )
+            sleep_time = self._rotation_time(
+                angle=abs(angle),
+                acceleration=acceleration,
+                max_velocity=max_velocity,
+                degrees=True
             )
-        sleep_time = self._rotation_time(
-            angle=abs(angle),
-            acceleration=acceleration,
-            max_velocity=max_velocity,
-            degrees=True
-        )
-        try:
-            self._motor.move_to(position=position)
-        except Exception as e:
-            print('Exception occured when moving motor: {e}')
-        else:
-            time.sleep(sleep_time)
-        self._stop_tracking_position()
+            try:
+                self._motor.move_to(position=position)
+            except Exception as e:
+                print('Exception occured when moving motor: {e}')
+            else:
+                time.sleep(sleep_time)
+            self._stop_tracking_position()
         return True
     
     def threaded_move_by(
@@ -214,8 +233,8 @@ class Motor:
             acceleration: float = MAX_ACCELERATION,
             max_velocity: float = MAX_VELOCITY
     ) -> None:
-        if self.motor_thread is None or not self.motor_thread.is_alive():
-            self.motor_thread = threading.Thread(
+        if self._movement_thread is None or not self._movement_thread.is_alive():
+            self._movement_thread = threading.Thread(
                 target=self.move_by,
                 args=(
                     angle,
@@ -223,7 +242,7 @@ class Motor:
                     max_velocity
                 )
             )
-            self.motor_thread.start()
+            self._movement_thread.start()
         else:
             print('Warning: Motor is busy')
 
@@ -233,8 +252,8 @@ class Motor:
             acceleration: float = MAX_ACCELERATION,
             max_velocity: float = MAX_VELOCITY
     ) -> None:
-        if self.motor_thread is None or not self.motor_thread.is_alive():
-            self.motor_thread = threading.Thread(
+        if self._movement_thread is None or not self._movement_thread.is_alive():
+            self._movement_thread = threading.Thread(
                 target=self.move_to,
                 args=(
                     position,
@@ -242,7 +261,7 @@ class Motor:
                     max_velocity
                 )
             )
-            self.motor_thread.start()
+            self._movement_thread.start()
         else:
             print('Warning: Motor is busy')
 
@@ -252,26 +271,28 @@ class Motor:
             acceleration: float = MAX_ACCELERATION,
             max_velocity: float = MAX_VELOCITY
     ) -> None:
-        if acceleration != self.acceleration or max_velocity != self.max_velocity:
-            self.acceleration = acceleration
-            self.max_velocity = max_velocity
-            self._motor.setup_jog(
-                mode='continuous',
-                acceleration=self.acceleration,
-                max_velocity=self.max_velocity
+        with self._lock:
+            if acceleration != self.acceleration or max_velocity != self.max_velocity:
+                self.acceleration = acceleration
+                self.max_velocity = max_velocity
+                self._motor.setup_jog(
+                    mode='continuous',
+                    acceleration=self.acceleration,
+                    max_velocity=self.max_velocity
+                )
+            if direction != self.direction:
+                self.direction = direction
+            self._start_tracking_position()
+            self._motor.jog(
+                direction=self.direction.value,
+                kind='builtin'
             )
-        if direction != self.direction:
-            self.direction = direction
-        self._start_tracking_position()
-        self._motor.jog(
-            direction=self.direction.value,
-            kind='builtin'
-        )
 
     def stop(self) -> None:
-        self._motor.stop()
-        self.direction = MotorDirection.IDLE
-        self._stop_tracking_position()
+        with self._lock:
+            self._motor.stop()
+            self.direction = MotorDirection.IDLE
+            self._stop_tracking_position()
 
     def _rotation_time(
             self,
@@ -301,54 +322,9 @@ class Motor:
             total_time = 2 * t_accel + t_cruise
 
         return total_time
-    
-    def _get_motor(
-            self,
-            serial_number: str
-    ) -> pylablib.devices.Thorlabs.KinesisMotor:
-        device_path = pathlib.Path('/dev/serial/by-id')
-        if not device_path.exists():
-            raise Exception
-        
-        motors: list[DeviceInfo] = []
-        for symlink in device_path.iterdir():
-            if 'Thorlabs' in symlink.name:
-                try:
-                    device_info = pylablib.devices.Thorlabs.KinesisMotor(
-                        conn=str(symlink.resolve())
-                    ).get_device_info()
-                    motors.append(DeviceInfo(
-                        device_name=device_info.notes,
-                        model=device_info.model_no,
-                        serial_number=str(device_info.serial_no),
-                        firmware_version=device_info.fw_ver
-                    ))
-                except IndexError:
-                    continue
-
-        symlinks = [path for path in device_path.iterdir()]
-        try:
-            serial_numbers = [motor.serial_number for motor in motors]
-            index = serial_numbers.index(serial_number)
-        except:
-            print(f'Could not find motor {serial_number}')
-            raise Exception
-        else:
-            return pylablib.devices.Thorlabs.KinesisMotor(
-                conn=str(symlinks[index].resolve()),
-                scale='stage'
-            )
 
 def get_motors() -> list[Motor]:
-    kinesis_motors = list_motors()
-    motors: list[Motor] = []
-    for motor in kinesis_motors:
-        motors.append(
-            Motor(
-                serial_number=str(motor.serial_number)
-            )
-        )
-    return motors
+    return [Motor(serial_number=info.serial_number) for info in list_motors()]
 
 if __name__ == '__main__':
     motors = get_motors()
