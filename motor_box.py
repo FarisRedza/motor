@@ -1,5 +1,3 @@
-import sys
-import os
 import typing
 
 import gi
@@ -7,18 +5,14 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib, GObject
 
-sys.path.append(
-    os.path.abspath(os.path.join(
-        os.path.dirname(__file__),
-        os.path.pardir
-    ))
-)
+import motor.base_motor as base_motor
 import motor.thorlabs_motor as thorlabs_motor
+import motor.remote_motor as remote_motor
 
 class MotorControls(Adw.PreferencesGroup):
     def __init__(
             self,
-            motor: thorlabs_motor.Motor,
+            motor: thorlabs_motor.Motor | remote_motor.Motor,
             get_position_callback: typing.Callable,
             get_direction_callback: typing.Callable,
             set_direction_callback: typing.Callable,
@@ -108,43 +102,96 @@ class MotorControls(Adw.PreferencesGroup):
         control_box.set_hexpand(True)
         rotation_row.set_child(child=control_box)
 
-        ## control grid
+        ### control grid
         control_grid = Gtk.Grid(
             column_spacing=6,
             row_spacing=6
         )
         control_box.append(child=control_grid)
 
-        # rotation controls
-        rotation_control_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        self.add(child=rotation_control_row)
+        #### jog ccw
+        self.jog_ccw_button = Gtk.Button(
+            label='Jog CCW',
+            valign=Gtk.Align.CENTER,
+            sensitive=False
+        )
+        control_grid.attach(
+            child=self.jog_ccw_button,
+            column=1,
+            row=1,
+            width=1,
+            height=1
+        )
+        self.jog_ccw_button.connect('clicked', self.on_jog_motor_ccw)
 
-        ## ccw
+        #### ccw
         self.ccw_button = Gtk.Button(
             label='CCW',
             valign=Gtk.Align.CENTER,
             sensitive=False
         )
-        control_grid.attach(self.ccw_button, 1, 1, 1, 1)
-        self.ccw_button.connect('clicked', self.rotate_motor_ccw)
+        control_grid.attach(
+            child=self.ccw_button,
+            column=2,
+            row=1,
+            width=1,
+            height=1
+        )
+        self.ccw_button.connect('clicked', self.on_rotate_motor_ccw)
 
-        ## rotate to 0
+        #### rotate to 0
         self.rot_0_button = Gtk.Button(
             label='0',
             valign=Gtk.Align.CENTER,
             sensitive=False
         )
-        control_grid.attach(self.rot_0_button, 2, 1, 1, 1)
-        self.rot_0_button.connect('clicked', self.rotate_motor_0)
+        control_grid.attach(
+            child=self.rot_0_button,
+            column=3,
+            row=1,
+            width=1,
+            height=1
+        )
+        self.rot_0_button.connect('clicked', self.on_rotate_motor_0)
 
-        ## cw
+        #### cw
         self.cw_button = Gtk.Button(
             label='CW',
             valign=Gtk.Align.CENTER,
             sensitive=False
         )
-        control_grid.attach(self.cw_button, 3, 1, 1, 1)
-        self.cw_button.connect('clicked', self.rotate_motor_cw)
+        control_grid.attach(
+            child=self.cw_button,
+            column=4,
+            row=1,
+            width=1,
+            height=1
+        )
+        self.cw_button.connect('clicked', self.on_rotate_motor_cw)
+
+        #### jog cw
+        self.jog_cw_button = Gtk.Button(
+            label='Jog CW',
+            valign=Gtk.Align.CENTER,
+            sensitive=False
+        )
+        control_grid.attach(
+            child=self.jog_cw_button,
+            column=5,
+            row=1,
+            width=1,
+            height=1
+        )
+        self.jog_cw_button.connect('clicked', self.on_jog_motor_cw)
+
+        #### stop
+        self.stop_button = Gtk.Button(
+            label='Stop',
+            valign=Gtk.Align.CENTER,
+            sensitive=False
+        )
+        control_grid.attach(self.stop_button, 1, 2, 5, 1)
+        self.stop_button.connect('clicked', self.on_stop_motor)
 
         GLib.timeout_add(
             interval=100,
@@ -157,12 +204,15 @@ class MotorControls(Adw.PreferencesGroup):
             gparam: GObject.GParamSpec
     ) -> None:
         self.manual_motor_control = not self.manual_motor_control
-        self.step_size_entry.set_sensitive(switch.get_active())
-        self.acceleration_entry.set_sensitive(switch.get_active())
-        self.max_velocity_entry.set_sensitive(switch.get_active())
-        self.ccw_button.set_sensitive(switch.get_active())
-        self.rot_0_button.set_sensitive(switch.get_active())
-        self.cw_button.set_sensitive(switch.get_active())
+        self.step_size_entry.set_sensitive(sensitive=switch.get_active())
+        self.acceleration_entry.set_sensitive(sensitive=switch.get_active())
+        self.max_velocity_entry.set_sensitive(sensitive=switch.get_active())
+        self.ccw_button.set_sensitive(sensitive=switch.get_active())
+        self.rot_0_button.set_sensitive(sensitive=switch.get_active())
+        self.cw_button.set_sensitive(sensitive=switch.get_active())
+        self.jog_ccw_button.set_sensitive(sensitive=switch.get_active())
+        self.jog_cw_button.set_sensitive(sensitive=switch.get_active())
+        self.stop_button.set_sensitive(sensitive=switch.get_active())
 
     def update_motor_info(self) -> bool:
         self.position_label.set_text(str=f'{self.get_position_callback():.3f}')
@@ -200,26 +250,44 @@ class MotorControls(Adw.PreferencesGroup):
             else:
                 self.set_max_velocity_callback(value=value)
 
-    def rotate_motor_ccw(self, button: Gtk.Button):
+    def on_stop_motor(self, button: Gtk.Button) -> None:
+        self.motor.stop()
+
+    def on_rotate_motor_ccw(self, button: Gtk.Button) -> None:
         self.motor.threaded_move_by(
             angle=-self.get_step_size_callback(),
             acceleration=self.get_acceleration_callback(),
             max_velocity=self.get_max_velocity_callback()
         )
 
-    def rotate_motor_0(self, button: Gtk.Button):
+    def on_rotate_motor_0(self, button: Gtk.Button) -> None:
         self.motor.threaded_move_to(
             position=0,
             acceleration=self.get_acceleration_callback(),
             max_velocity=self.get_max_velocity_callback()
         )
 
-    def rotate_motor_cw(self, button: Gtk.Button):
+    def on_rotate_motor_cw(self, button: Gtk.Button) -> None:
         self.motor.threaded_move_by(
             angle=self.get_step_size_callback(),
             acceleration=self.get_acceleration_callback(),
             max_velocity=self.get_max_velocity_callback()
         )
+
+    def on_jog_motor_ccw(self, button: Gtk.Button) -> None:
+        self.motor.jog(
+            direction=base_motor.MotorDirection.BACKWARD,
+            acceleration=self.get_acceleration_callback(),
+            max_velocity=self.get_max_velocity_callback()
+        )
+
+    def on_jog_motor_cw(self, button: Gtk.Button) -> None:
+        self.motor.jog(
+            direction=base_motor.MotorDirection.FORWARD,
+            acceleration=self.get_acceleration_callback(),
+            max_velocity=self.get_max_velocity_callback()
+        )
+
 
 class DeviceInfoGroup(Adw.PreferencesGroup):
     def __init__(
@@ -228,7 +296,7 @@ class DeviceInfoGroup(Adw.PreferencesGroup):
     ) -> None:
         super().__init__()
         self.set_title(title='Motor Info')
-        device_info: thorlabs_motor.DeviceInfo = get_device_info_callback()
+        device_info: base_motor.DeviceInfo = get_device_info_callback()
 
         # serial number
         serial_no_row = Adw.ActionRow(title='Serial number')
@@ -259,7 +327,10 @@ class DeviceInfoGroup(Adw.PreferencesGroup):
         device_name_row.add_suffix(widget=self.device_name_label)
 
 class MotorControlPage(Adw.PreferencesPage):
-    def __init__(self, motor: thorlabs_motor.Motor) -> None:
+    def __init__(
+            self,
+            motor: thorlabs_motor.Motor | remote_motor.Motor
+    ) -> None:
         super().__init__()
         self.motor = motor
 
@@ -282,16 +353,16 @@ class MotorControlPage(Adw.PreferencesPage):
         )
         self.add(device_info_group)
 
-    def get_device_info(self) -> thorlabs_motor.DeviceInfo:
+    def get_device_info(self) -> base_motor.DeviceInfo:
         return self.motor.device_info
     
     def get_motor_position(self) -> float:
         return self.motor.position
     
-    def get_motor_direction(self) -> thorlabs_motor.MotorDirection:
+    def get_motor_direction(self) -> base_motor.MotorDirection:
         return self.motor.direction
 
-    def set_motor_direction(self, value: thorlabs_motor.MotorDirection) -> None:
+    def set_motor_direction(self, value: base_motor.MotorDirection) -> None:
         self.motor.direction = value
 
     def get_motor_step_size(self) -> float:

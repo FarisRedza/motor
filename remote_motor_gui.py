@@ -6,7 +6,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw
 
 import motor_box
-import thorlabs_motor
+import remote_motor
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, *args, **kwargs):
@@ -29,7 +29,10 @@ class MainWindow(Adw.ApplicationWindow):
         )
         main_box.append(child=self.main_stack)
 
-        motors = thorlabs_motor.list_motors()
+        motors = remote_motor.list_motors(
+            ip_address=remote_motor.server_ip,
+            port=remote_motor.server_port
+        )
         if len(motors) == 0:
             main_box.append(
                 child=Gtk.Label(
@@ -78,7 +81,11 @@ class MainWindow(Adw.ApplicationWindow):
 
     def on_add_motor(self, button: Gtk.Button, serial_number):
         self.motor_control_box = motor_box.MotorControlPage(
-            motor=thorlabs_motor.Motor(serial_number=serial_number)
+            motor=remote_motor.Motor(
+                ip_address=remote_motor.server_ip,
+                port=remote_motor.server_port,
+                serial_number=serial_number
+            )
         )
         self.main_stack.add_titled(
             child=self.motor_control_box,
@@ -86,6 +93,7 @@ class MainWindow(Adw.ApplicationWindow):
             title='test'
         )
         self.main_stack.set_visible_child(child=self.motor_control_box)
+        pass
 
     def on_close_request(self, window: Adw.ApplicationWindow) -> bool:
         return False
