@@ -286,7 +286,7 @@ class Motor(base_motor.Motor):
         self._start_tracking_position()
         self._motor.jog(
             direction=self.direction.value,
-            kind='builtin'
+            kind='continuous'
         )
 
 def list_motors() -> list[Motor]:
