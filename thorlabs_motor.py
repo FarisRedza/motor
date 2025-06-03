@@ -103,6 +103,7 @@ class Motor(base_motor.Motor):
             self._position_thread.join(timeout=2)
         self._position_thread = None
         self.direction = base_motor.MotorDirection.IDLE
+        self.is_moving = False
 
     def _rotation_time(self, angle: float) -> float:
         angle = math.radians(abs(angle))
