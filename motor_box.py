@@ -61,6 +61,13 @@ class MotorControls(Adw.PreferencesGroup):
         self.position_label = Gtk.Label(label=f'{self.get_position_callback():.3f}')
         position_row.add_suffix(widget=self.position_label)
 
+        # direction
+        direction_row = Adw.ActionRow(title='Direction')
+        self.add(child=direction_row)
+
+        self.direction_label = Gtk.Label(label=self.get_direction_callback().name)
+        direction_row.add_suffix(widget=self.direction_label)
+
         # step size
         step_size_row = Adw.ActionRow(title='Step size')
         self.add(child=step_size_row)
@@ -224,6 +231,7 @@ class MotorControls(Adw.PreferencesGroup):
 
     def update_motor_info(self) -> bool:
         self.position_label.set_text(str=f'{self.get_position_callback():.3f}')
+        self.direction_label.set_text(str=self.get_direction_callback().name)
         # self.acceleration_entry.set_text(text=f'{self.get_acceleration_callback():.3f}')
         # self.max_velocity_entry.set_text(text=f'{self.get_max_velocity_callback():.3f}')
         return True
