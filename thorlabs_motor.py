@@ -94,7 +94,10 @@ class Motor(base_motor.Motor):
         if self._position_thread and self._position_thread.is_alive():
             return
         self._stop_event.clear()
-        self._position_thread = threading.Thread(target=self._track_position, daemon=True)
+        self._position_thread = threading.Thread(
+            target=self._track_position,
+            daemon=True
+        )
         self._position_thread.start()
 
     def _stop_tracking_position(self):
@@ -125,12 +128,21 @@ class Motor(base_motor.Motor):
             self.direction = base_motor.MotorDirection.IDLE
         self._stop_tracking_position()
 
-    def move_by(self, angle: float, acceleration: float, max_velocity: float) -> bool:
+    def move_by(
+            self,
+            angle: float,
+            acceleration: float,
+            max_velocity: float
+    ) -> bool:
         self.stop()
         with self._lock:
             self.acceleration = acceleration
             self.max_velocity = max_velocity
-            self._motor.setup_velocity(acceleration=self.acceleration, max_velocity=self.max_velocity, scale=True)
+            self._motor.setup_velocity(
+                acceleration=self.acceleration,
+                max_velocity=self.max_velocity,
+                scale=True
+            )
         self._start_tracking_position()
         direction = base_motor.MotorDirection.FORWARD if angle > 0 else base_motor.MotorDirection.BACKWARD
         self.direction = direction
@@ -146,37 +158,75 @@ class Motor(base_motor.Motor):
             self.position = self._motor.get_position()
         return True
 
-    def move_to(self, position: float, acceleration: float, max_velocity: float) -> bool:
+    def move_to(
+            self,
+            position: float,
+            acceleration: float,
+            max_velocity: float
+    ) -> bool:
         self.stop()
         with self._lock:
             current_position = self._motor.get_position()
         angle = position - current_position
         return self.move_by(angle, acceleration, max_velocity)
 
-    def jog(self, direction: base_motor.MotorDirection, acceleration: float, max_velocity: float):
+    def jog(
+            self,
+            direction: base_motor.MotorDirection,
+            acceleration: float,
+            max_velocity: float
+    ) -> None:
         self.stop()
         with self._lock:
             self.acceleration = acceleration
             self.max_velocity = max_velocity
-            self._motor.setup_jog(mode='continuous', acceleration=self.acceleration, max_velocity=self.max_velocity)
+            self._motor.setup_jog(
+                mode='continuous',
+                acceleration=self.acceleration,
+                max_velocity=self.max_velocity
+            )
             self.direction = direction
-            self._motor.jog(direction=self.direction.value, kind='builtin')
+            self._motor.jog(
+                direction=self.direction.value,
+                kind='builtin'
+            )
         self._start_tracking_position()
 
-    def threaded_move_by(self, angle: float, acceleration: float, max_velocity: float):
+    def threaded_move_by(
+            self, angle: float,
+            acceleration: float,
+            max_velocity: float
+    ) -> None:
         if self._movement_thread and self._movement_thread.is_alive():
             return
-        self._movement_thread = threading.Thread(target=self.move_by, args=(angle, acceleration, max_velocity), daemon=True)
+        self._movement_thread = threading.Thread(
+            target=self.move_by,
+            args=(angle, acceleration, max_velocity),
+            daemon=True
+        )
         self._movement_thread.start()
 
-    def threaded_move_to(self, position: float, acceleration: float, max_velocity: float):
+    def threaded_move_to(
+            self,
+            position: float,
+            acceleration: float,
+            max_velocity: float
+    ) -> None:
         if self._movement_thread and self._movement_thread.is_alive():
             return
-        self._movement_thread = threading.Thread(target=self.move_to, args=(position, acceleration, max_velocity), daemon=True)
+        self._movement_thread = threading.Thread(
+            target=self.move_to,
+            args=(position, acceleration, max_velocity),
+            daemon=True
+        )
         self._movement_thread.start()
 
 def list_motors() -> list[Motor]:
-    return [Motor(str(m.get_device_info().serial_no)) for m in list_thorlabs_motors()]
+    return [
+        Motor(
+            str(m.get_device_info().serial_no)
+        ) for m in list_thorlabs_motors()
+    ]
 
 if __name__ == '__main__':
     for motor in list_motors():

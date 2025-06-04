@@ -22,7 +22,10 @@ def send_request(
 ) -> typing.Any:
     request = {'command': command.value}
     try:
-        with socket.create_connection(address=(ip_address,port), timeout=timeout) as s:
+        with socket.create_connection(
+            address=(ip_address, port),
+            timeout=timeout
+        ) as s:
             match command:
                 case base_motor.Commands.LIST_MOTORS:
                     pass
@@ -141,7 +144,9 @@ class Motor(base_motor.Motor):
                         arguments=[self.device_info.serial_number]
                     )
                     self.position = float(update['position'])
-                    self.direction = base_motor.MotorDirection(update['direction'])
+                    self.direction = base_motor.MotorDirection(
+                        update['direction']
+                    )
                     moving = bool(update['moving'])
                 except Exception:
                     moving = False
