@@ -9,7 +9,7 @@ import motor_box
 import remote_motor
 
 class MainWindow(Adw.ApplicationWindow):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.set_title(title='Motor Controller')
         self.set_default_size(width=400, height=350)
@@ -79,7 +79,7 @@ class MainWindow(Adw.ApplicationWindow):
         )
         add_motor_button.connect('clicked', self.on_add_motor)
 
-    def on_add_motor(self, button: Gtk.Button, serial_number):
+    def on_add_motor(self, button: Gtk.Button, serial_number) -> None:
         self.motor_control_box = motor_box.MotorControlPage(
             motor=remote_motor.Motor(
                 ip_address=remote_motor.server_ip,
@@ -99,11 +99,11 @@ class MainWindow(Adw.ApplicationWindow):
         return False
 
 class App(Adw.Application):
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.connect('activate', self.on_activate)
 
-    def on_activate(self, app):
+    def on_activate(self, app) -> None:
         self.win = MainWindow(application=app)
         self.win.present()
 
