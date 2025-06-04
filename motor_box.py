@@ -14,13 +14,11 @@ sys.path.append(
     ))
 )
 import motor.base_motor as base_motor
-import motor.thorlabs_motor as thorlabs_motor
-import motor.remote_motor as remote_motor
 
 class MotorControls(Adw.PreferencesGroup):
     def __init__(
             self,
-            motor: thorlabs_motor.Motor | remote_motor.Motor,
+            motor: base_motor.Motor,
             get_position_callback: typing.Callable,
             get_direction_callback: typing.Callable,
             set_direction_callback: typing.Callable,
@@ -345,7 +343,8 @@ class DeviceInfoGroup(Adw.PreferencesGroup):
 class MotorControlPage(Adw.PreferencesPage):
     def __init__(
             self,
-            motor: thorlabs_motor.Motor | remote_motor.Motor
+            # motor: thorlabs_motor.Motor | remote_motor.Motor
+            motor: base_motor.Motor
     ) -> None:
         super().__init__()
         self.motor = motor

@@ -165,7 +165,6 @@ class Motor(base_motor.Motor):
         self._stop_event.set()
         if self._position_thread and self._position_thread.is_alive():
             self._position_thread.join()
-        print("stop tracking")
 
     def stop(self) -> None:
         send_request(

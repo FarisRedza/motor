@@ -31,7 +31,7 @@ def handle_client(connection: socket.socket, address) -> None:
                         response = {'motors': [dataclasses.asdict(m.device_info) for m in motors]}
 
                     case base_motor.Commands.GET_POSITION.value:
-                        serial_number = str(request.get('serial_number'))
+                        serial_number = str(request['serial_number'])
                         try:
                             motor = next(m for m in motors if m.device_info.serial_number == serial_number)
                         except:
