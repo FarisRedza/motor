@@ -26,11 +26,11 @@ def handle_client(connection: socket.socket, address) -> None:
                 request = json.loads(data)
                 command = str(request['command'])
                 print(f'Command received: {command}')
-                match command:
-                    case base_motor.Commands.LIST_MOTORS.value:
+                match base_motor.Commands(command):
+                    case base_motor.Commands.LIST_MOTORS:
                         response = {'motors': [dataclasses.asdict(m.device_info) for m in motors]}
 
-                    case base_motor.Commands.GET_POSITION.value:
+                    case base_motor.Commands.GET_POSITION:
                         serial_number = str(request['serial_number'])
                         try:
                             motor = next(m for m in motors if m.device_info.serial_number == serial_number)
@@ -45,7 +45,7 @@ def handle_client(connection: socket.socket, address) -> None:
                                 'max_velocity': motor.max_velocity
                             }
 
-                    case base_motor.Commands.STOP.value:
+                    case base_motor.Commands.STOP:
                         serial_number = str(request['serial_number'])
                         try:
                             motor = next(m for m in motors if m.device_info.serial_number == serial_number)
@@ -58,7 +58,7 @@ def handle_client(connection: socket.socket, address) -> None:
                                 'moving': motor.is_moving,
                             }
 
-                    case base_motor.Commands.MOVE_BY.value:
+                    case base_motor.Commands.MOVE_BY:
                         serial_number = str(request['serial_number'])
                         try:
                             motor = next(m for m in motors if m.device_info.serial_number == serial_number)
@@ -77,7 +77,7 @@ def handle_client(connection: socket.socket, address) -> None:
                                 'moving': motor.is_moving
                             }
 
-                    case base_motor.Commands.MOVE_TO.value:
+                    case base_motor.Commands.MOVE_TO:
                         serial_number = str(request['serial_number'])
                         try:
                             motor = next(m for m in motors if m.device_info.serial_number == serial_number)
@@ -96,7 +96,7 @@ def handle_client(connection: socket.socket, address) -> None:
                                 'moving': motor.is_moving
                             }
 
-                    case base_motor.Commands.JOG.value:
+                    case base_motor.Commands.JOG:
                         serial_number = str(request['serial_number'])
                         try:
                             motor = next(m for m in motors if m.device_info.serial_number == serial_number)

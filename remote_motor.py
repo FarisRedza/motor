@@ -6,15 +6,15 @@ import time
 
 import motor.base_motor as base_motor
 
-server_ip = '127.0.0.1'
-# server_ip = '137.195.89.222'
+server_host = '127.0.0.1'
+server_host = '137.195.89.222'
 server_port = 5002
 
 MAX_ACCELERATION = 20.0
 MAX_VELOCITY = 25.0
 
 def send_request(
-        ip_address: str,
+        host: str,
         port: int,
         command: base_motor.Commands,
         arguments: list = [],
@@ -23,7 +23,7 @@ def send_request(
     request = {'command': command.value}
     try:
         with socket.create_connection(
-            address=(ip_address, port),
+            address=(host, port),
             timeout=timeout
         ) as s:
             match command:
@@ -73,11 +73,11 @@ def send_request(
         return {f'Error sending request {request}': str(e)}
     
 def list_device_info(
-        ip_address: str,
+        host: str,
         port: int
 ) -> list[base_motor.DeviceInfo]:
     result = send_request(
-        ip_address=ip_address,
+        host=host,
         port=port,
         command=base_motor.Commands.LIST_MOTORS
     )
@@ -87,10 +87,10 @@ class Motor(base_motor.Motor):
     def __init__(
             self,
             serial_number: str,
-            ip_address: str,
+            host: str,
             port: int
     ) -> None:
-        self.ip_address = ip_address
+        self.host = host
         self.port = port
         self._get_motor(serial_number=serial_number)
         self.step_size = 5.0
@@ -108,7 +108,7 @@ class Motor(base_motor.Motor):
             serial_number: str
     ) -> None:
         motors = list_device_info(
-            ip_address=self.ip_address,
+            host=self.host,
             port=self.port
         )
         motor_index = next(
@@ -121,7 +121,7 @@ class Motor(base_motor.Motor):
             self.device_info = motors[motor_index]
             
             status = send_request(
-                ip_address=self.ip_address,
+                host=self.host,
                 port=self.port,
                 command=base_motor.Commands.GET_POSITION,
                 arguments=[self.device_info.serial_number]
@@ -135,10 +135,11 @@ class Motor(base_motor.Motor):
 
     def _track_position(self) -> None:
         while True:
+            time.sleep(self._position_polling)
             with self._lock:
                 try:
                     update = send_request(
-                        ip_address=self.ip_address,
+                        host=self.host,
                         port=self.port,
                         command=base_motor.Commands.GET_POSITION,
                         arguments=[self.device_info.serial_number]
@@ -168,7 +169,7 @@ class Motor(base_motor.Motor):
 
     def stop(self) -> None:
         send_request(
-            ip_address=self.ip_address,
+            host=self.host,
             port=self.port,
             command=base_motor.Commands.STOP,
             arguments=[self.device_info.serial_number],
@@ -183,7 +184,7 @@ class Motor(base_motor.Motor):
     ) -> bool:
         with self._lock:
             response = send_request(
-                ip_address=self.ip_address,
+                host=self.host,
                 port=self.port,
                 command=base_motor.Commands.MOVE_BY,
                 arguments=[
@@ -208,7 +209,7 @@ class Motor(base_motor.Motor):
     ) -> bool:
         with self._lock:
             response = send_request(
-                ip_address=self.ip_address,
+                host=self.host,
                 port=self.port,
                 command=base_motor.Commands.MOVE_TO,
                 arguments=[
@@ -264,7 +265,7 @@ class Motor(base_motor.Motor):
             max_velocity: float
     ) -> None:
         response = send_request(
-            ip_address=self.ip_address,
+            host=self.host,
             port=self.port,
             command=base_motor.Commands.JOG,
             arguments=[
@@ -278,18 +279,18 @@ class Motor(base_motor.Motor):
         self._start_tracking_position()
 
 def list_motors(
-        ip_address: str,
+        host: str,
         port: int
 ) -> list[Motor]:
     result = send_request(
-        ip_address=ip_address,
+        host=host,
         port=port,
         command=base_motor.Commands.LIST_MOTORS
     )
     return [
         Motor(
             serial_number=base_motor.DeviceInfo(**motor).serial_number,
-            ip_address=ip_address,
+            host=host,
             port=port
         ) for motor in result['motors']
     ]
@@ -297,7 +298,7 @@ def list_motors(
 if __name__ == '__main__':
     motor = Motor(
         serial_number='55353314',
-        ip_address=server_ip,
+        host=server_host,
         port=server_port
     )
 

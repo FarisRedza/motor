@@ -30,7 +30,7 @@ class MainWindow(Adw.ApplicationWindow):
         main_box.append(child=self.main_stack)
 
         motors = remote_motor.list_motors(
-            ip_address=remote_motor.server_ip,
+            host=remote_motor.server_host,
             port=remote_motor.server_port
         )
         if len(motors) == 0:
@@ -82,7 +82,7 @@ class MainWindow(Adw.ApplicationWindow):
     def on_add_motor(self, button: Gtk.Button, serial_number) -> None:
         self.motor_control_box = motor_box.MotorControlPage(
             motor=remote_motor.Motor(
-                ip_address=remote_motor.server_ip,
+                host=remote_motor.server_host,
                 port=remote_motor.server_port,
                 serial_number=serial_number
             )
