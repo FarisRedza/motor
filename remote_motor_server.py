@@ -33,7 +33,9 @@ def handle_client(connection: socket.socket, address) -> None:
                     case base_motor.Commands.GET_POSITION:
                         serial_number = str(request['serial_number'])
                         try:
-                            motor = next(m for m in motors if m.device_info.serial_number == serial_number)
+                            motor = next(
+                                m for m in motors if m.device_info.serial_number == serial_number
+                            )
                         except:
                             response = {'error': f'Motor {serial_number} not found'}
                         else:
@@ -48,7 +50,9 @@ def handle_client(connection: socket.socket, address) -> None:
                     case base_motor.Commands.STOP:
                         serial_number = str(request['serial_number'])
                         try:
-                            motor = next(m for m in motors if m.device_info.serial_number == serial_number)
+                            motor = next(
+                                m for m in motors if m.device_info.serial_number == serial_number
+                            )
                         except:
                             response = {'error': f'Motor {serial_number} not found'}
                         else:
@@ -61,7 +65,9 @@ def handle_client(connection: socket.socket, address) -> None:
                     case base_motor.Commands.MOVE_BY:
                         serial_number = str(request['serial_number'])
                         try:
-                            motor = next(m for m in motors if m.device_info.serial_number == serial_number)
+                            motor = next(
+                                m for m in motors if m.device_info.serial_number == serial_number
+                            )
                         except:
                             response = {'error': f'Motor {serial_number} not found'}
                         else:
@@ -80,7 +86,9 @@ def handle_client(connection: socket.socket, address) -> None:
                     case base_motor.Commands.MOVE_TO:
                         serial_number = str(request['serial_number'])
                         try:
-                            motor = next(m for m in motors if m.device_info.serial_number == serial_number)
+                            motor = next(
+                                m for m in motors if m.device_info.serial_number == serial_number
+                            )
                         except:
                             response = {'error': f'Motor {serial_number} not found'}
                         else:
@@ -99,7 +107,9 @@ def handle_client(connection: socket.socket, address) -> None:
                     case base_motor.Commands.JOG:
                         serial_number = str(request['serial_number'])
                         try:
-                            motor = next(m for m in motors if m.device_info.serial_number == serial_number)
+                            motor = next(
+                                m for m in motors if m.device_info.serial_number == serial_number
+                            )
                         except:
                             response = {'error': f'Motor {serial_number} not found'}
                         else:
