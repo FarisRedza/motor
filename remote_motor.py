@@ -7,7 +7,7 @@ import time
 import motor.base_motor as base_motor
 
 server_host = '127.0.0.1'
-server_host = '137.195.89.222'
+# server_host = '137.195.89.222'
 server_port = 5002
 
 MAX_ACCELERATION = 20.0
@@ -174,6 +174,7 @@ class Motor(base_motor.Motor):
             command=base_motor.Commands.STOP,
             arguments=[self.device_info.serial_number],
         )
+        self.is_moving = False
         self._stop_tracking_position()
 
     def move_by(
@@ -275,7 +276,8 @@ class Motor(base_motor.Motor):
                 max_velocity
             ]
         )
-        self.is_moving = response['moving']
+        # self.is_moving = response['moving']
+        self.is_moving = True
         self._start_tracking_position()
 
 def list_motors(
