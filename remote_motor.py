@@ -7,7 +7,7 @@ import time
 import motor.base_motor as base_motor
 
 server_host = '127.0.0.1'
-# server_host = '137.195.89.222'
+server_host = '137.195.89.222'
 server_port = 5002
 
 MAX_ACCELERATION = 20.0
