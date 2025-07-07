@@ -3,7 +3,15 @@ import socket
 import typing
 import json
 import time
+import sys
+import os
 
+sys.path.append(
+    os.path.abspath(os.path.join(
+        os.path.dirname(__file__),
+        os.path.pardir
+    ))
+)
 import motor.base_motor as base_motor
 
 server_host = '127.0.0.1'
