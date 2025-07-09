@@ -1,6 +1,7 @@
 import threading
 import enum
 import dataclasses
+import struct
 
 @dataclasses.dataclass
 class DeviceInfo:
@@ -8,6 +9,34 @@ class DeviceInfo:
     model: str = ''
     serial_number: str = ''
     firmware_version: str = ''
+
+    def serialise(self) -> bytes:
+        def encode_string(s: str):
+            b = s.encode()
+            return struct.pack(f'I{len(b)}s', len(b), b)
+
+        return (
+            encode_string(self.device_name) +
+            encode_string(self.model) +
+            encode_string(self.serial_number) +
+            encode_string(self.firmware_version)
+        )
+    
+    @classmethod
+    def deserialise(cls, payload: bytes) -> 'DeviceInfo':
+        offset = 0
+        fields = []
+        for _ in range(4):
+            length = struct.unpack_from('I', payload, offset)[0]
+            offset += 4
+            value = struct.unpack_from(
+                f'{length}s',
+                payload,
+                offset
+            )[0].decode()
+            offset += length
+            fields.append(value)
+        return DeviceInfo(*fields)
 
 class MotorDirection(enum.Enum):
     FORWARD = '-'
