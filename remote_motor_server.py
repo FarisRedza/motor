@@ -14,18 +14,20 @@ sys.path.append(
 import motor.thorlabs_motor as thorlabs_motor
 import motor.base_motor as base_motor
 
-def handle_client(connection: socket.socket, address) -> None:
+def handle_client(
+        connection: socket.socket,
+        address
+) -> None:
     print(f'Connected by {address}')
     with connection:
-        while True:
-            try:
+        try:
+            while True:
                 data = connection.recv(1024).decode()
                 if not data:
                     break
 
                 request = json.loads(data)
                 command = str(request['command'])
-                print(f'Command received: {command}')
                 match base_motor.Commands(command):
                     case base_motor.Commands.LIST_MOTORS:
                         response = {'motors': [dataclasses.asdict(m.device_info) for m in motors]}
@@ -127,14 +129,20 @@ def handle_client(connection: socket.socket, address) -> None:
                     case _:
                         response = {'error': 'Unkown command'}
 
-                print(response)
                 connection.sendall((json.dumps(response) + "\n").encode())
 
-            except Exception as e:
-                connection.sendall(json.dumps({'error': str(e)}).encode())
-                break
+        except ConnectionResetError:
+            print(f'Connection lost with {address}')
 
-def start_server(host: str = '0.0.0.0', port: int = 5002) -> None:
+        finally:
+            connection.close()
+            print(f'Disconnected from {address}')
+        
+
+def start_server(
+        host: str = '0.0.0.0',
+        port: int = 5002
+) -> None:
     server = socket.socket(
         family=socket.AF_INET,
         type=socket.SOCK_STREAM
@@ -142,13 +150,13 @@ def start_server(host: str = '0.0.0.0', port: int = 5002) -> None:
     try:
         server.bind((host, port))
         server.listen()
+
         print(f'Motor server listening on {host}:{port}')
         while True:
             conn, addr = server.accept()
             threading.Thread(
                 target=handle_client,
                 args=(conn, addr),
-                # daemon=True
             ).start()
     except KeyboardInterrupt:
         server.close()

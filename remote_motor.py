@@ -3,7 +3,15 @@ import socket
 import typing
 import json
 import time
+import sys
+import os
 
+sys.path.append(
+    os.path.abspath(os.path.join(
+        os.path.dirname(__file__),
+        os.path.pardir
+    ))
+)
 import motor.base_motor as base_motor
 
 server_host = '127.0.0.1'
@@ -14,71 +22,63 @@ MAX_ACCELERATION = 20.0
 MAX_VELOCITY = 25.0
 
 def send_request(
-        host: str,
-        port: int,
+        sock: socket.socket,
         command: base_motor.Commands,
-        arguments: list = [],
-        timeout: int = 5
+        arguments: list = []
 ) -> typing.Any:
     request = {'command': command.value}
     try:
-        with socket.create_connection(
-            address=(host, port),
-            timeout=timeout
-        ) as s:
-            match command:
-                case base_motor.Commands.LIST_MOTORS:
-                    pass
+        match command:
+            case base_motor.Commands.LIST_MOTORS:
+                pass
 
-                case base_motor.Commands.GET_POSITION:
-                    request['serial_number'] = arguments[0]
+            case base_motor.Commands.GET_POSITION:
+                request['serial_number'] = arguments[0]
 
-                case base_motor.Commands.STOP:
-                    request['serial_number'] = arguments[0]
+            case base_motor.Commands.STOP:
+                request['serial_number'] = arguments[0]
 
-                case base_motor.Commands.MOVE_BY:
-                    request['serial_number'] = arguments[0]
-                    request['angle'] = arguments[1]
-                    request['acceleration'] = arguments[2]
-                    request['max_velocity'] = arguments[3]
+            case base_motor.Commands.MOVE_BY:
+                request['serial_number'] = arguments[0]
+                request['angle'] = arguments[1]
+                request['acceleration'] = arguments[2]
+                request['max_velocity'] = arguments[3]
 
-                case base_motor.Commands.MOVE_TO:
-                    request['serial_number'] = arguments[0]
-                    request['position'] = arguments[1]
-                    request['acceleration'] = arguments[2]
-                    request['max_velocity'] = arguments[3]
+            case base_motor.Commands.MOVE_TO:
+                request['serial_number'] = arguments[0]
+                request['position'] = arguments[1]
+                request['acceleration'] = arguments[2]
+                request['max_velocity'] = arguments[3]
 
-                case base_motor.Commands.JOG:
-                    request['serial_number'] = arguments[0]
-                    request['direction'] = arguments[1]
-                    request['acceleration'] = arguments[2]
-                    request['max_velocity'] = arguments[3]
+            case base_motor.Commands.JOG:
+                request['serial_number'] = arguments[0]
+                request['direction'] = arguments[1]
+                request['acceleration'] = arguments[2]
+                request['max_velocity'] = arguments[3]
 
-                case _:
-                    raise Exception('Unknown command')
+            case _:
+                raise Exception('Unknown command')
 
-            s.sendall(json.dumps(request).encode())
-            buffer = ""
-            while True:
-                data = s.recv(1024).decode()
-                if not data:
-                    break
-                buffer += data
-                if "\n" in buffer:
-                    break
-            response = json.loads(buffer.strip())
-            return response
+        sock.sendall(json.dumps(request).encode())
+        buffer = ""
+        while True:
+            data = sock.recv(1024).decode()
+            if not data:
+                break
+            buffer += data
+            if "\n" in buffer:
+                break
+        response = json.loads(buffer.strip())
+        return response
 
     except Exception as e:
         return {f'Error sending request {request}': str(e)}
     
 def list_device_info(
-        host: str,
-        port: int
+        sock: socket.socket,
 ) -> list[base_motor.DeviceInfo]:
     result = send_request(
-        host=host,
-        port=port,
+        sock=sock,
         command=base_motor.Commands.LIST_MOTORS
     )
     return [base_motor.DeviceInfo(**motor) for motor in result['motors']]
@@ -92,7 +92,14 @@ class Motor(base_motor.Motor):
     ) -> None:
         self.host = host
         self.port = port
+
+        self._sock = socket.socket(
+            socket.AF_INET,
+            socket.SOCK_STREAM
+        )
+        self._sock.connect((self.host, self.port))
         self._get_motor(serial_number=serial_number)
+
         self.step_size = 5.0
         self.acceleration = MAX_ACCELERATION
         self.max_velocity = MAX_VELOCITY
@@ -103,13 +110,18 @@ class Motor(base_motor.Motor):
         self._position_polling = 0.1
         self._movement_thread: threading.Thread | None = None
 
+    def __del__(self) -> None:
+        self.disconnect()
+
+    def disconnect(self) -> None:
+        self._sock.close()
+
     def _get_motor(
             self,
             serial_number: str
     ) -> None:
         motors = list_device_info(
-            host=self.host,
-            port=self.port
+            sock=self._sock
         )
         motor_index = next(
             (i for i, motor in enumerate(motors) if str(motor.serial_number) == serial_number),
@@ -121,8 +133,7 @@ class Motor(base_motor.Motor):
             self.device_info = motors[motor_index]
             
             status = send_request(
-                host=self.host,
-                port=self.port,
+                sock=self._sock,
                 command=base_motor.Commands.GET_POSITION,
                 arguments=[self.device_info.serial_number]
             )
@@ -139,8 +150,7 @@ class Motor(base_motor.Motor):
             with self._lock:
                 try:
                     update = send_request(
-                        host=self.host,
-                        port=self.port,
+                        sock=self._sock,
                         command=base_motor.Commands.GET_POSITION,
                         arguments=[self.device_info.serial_number]
                     )
@@ -169,8 +179,7 @@ class Motor(base_motor.Motor):
 
     def stop(self) -> None:
         send_request(
-            host=self.host,
-            port=self.port,
+            sock=self._sock,
             command=base_motor.Commands.STOP,
             arguments=[self.device_info.serial_number],
         )
@@ -185,8 +194,7 @@ class Motor(base_motor.Motor):
     ) -> bool:
         with self._lock:
             response = send_request(
-                host=self.host,
-                port=self.port,
+                sock=self._sock,
                 command=base_motor.Commands.MOVE_BY,
                 arguments=[
                     self.device_info.serial_number,
@@ -210,8 +218,7 @@ class Motor(base_motor.Motor):
     ) -> bool:
         with self._lock:
             response = send_request(
-                host=self.host,
-                port=self.port,
+                sock=self._sock,
                 command=base_motor.Commands.MOVE_TO,
                 arguments=[
                     self.device_info.serial_number,
@@ -266,8 +273,7 @@ class Motor(base_motor.Motor):
             max_velocity: float
     ) -> None:
         response = send_request(
-            host=self.host,
-            port=self.port,
+            sock=self._sock,
             command=base_motor.Commands.JOG,
             arguments=[
                 self.device_info.serial_number,
@@ -282,13 +288,18 @@ class Motor(base_motor.Motor):
 
 def list_motors(
         host: str,
-        port: int
+        port: int,
 ) -> list[Motor]:
+    sock = socket.socket(
+        socket.AF_INET,
+        socket.SOCK_STREAM
+    )
+    sock.connect((host, port))
     result = send_request(
-        host=host,
-        port=port,
+        sock=sock,
         command=base_motor.Commands.LIST_MOTORS
     )
+    sock.close()
     return [
         Motor(
             serial_number=base_motor.DeviceInfo(**motor).serial_number,
@@ -298,16 +309,22 @@ def list_motors(
     ]
 
 if __name__ == '__main__':
-    motor = Motor(
-        serial_number='55353314',
+    # motor = Motor(
+    #     serial_number='55353314',
+    #     host=server_host,
+    #     port=server_port
+    # )
+
+    # motor.jog(
+    #     direction=base_motor.MotorDirection.FORWARD,
+    #     acceleration=20.0,
+    #     max_velocity=5.0
+    # )
+    # time.sleep(5)
+    # motor.stop()
+
+    motors = list_motors(
         host=server_host,
         port=server_port
     )
-
-    motor.jog(
-        direction=base_motor.MotorDirection.FORWARD,
-        acceleration=20.0,
-        max_velocity=5.0
-    )
-    time.sleep(5)
-    motor.stop()
+    print(motors)
