@@ -1,0 +1,7 @@
+[project]
+name = "motor"
+version = "0.1"
+dependencies = ["pylablib"]
+
+[project.urls]
+"Homepage" = "https://github.com/FarisRedza/motor"
