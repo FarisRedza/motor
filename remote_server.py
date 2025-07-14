@@ -1,18 +1,10 @@
-import sys
-import os
 import socket
 import threading
 import json
 import dataclasses
 
-sys.path.append(
-    os.path.abspath(os.path.join(
-        os.path.dirname(__file__),
-        os.path.pardir
-    ))
-)
-import motor.thorlabs_motor as thorlabs_motor
-import motor.base_motor as base_motor
+from . import thorlabs_motor
+from . import base_motor
 
 def handle_client(
         connection: socket.socket,

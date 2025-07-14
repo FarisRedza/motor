@@ -5,7 +5,8 @@ import time
 import math
 
 import pylablib.devices.Thorlabs
-import motor.base_motor as base_motor
+
+from . import base_motor
 
 MAX_ACCELERATION = 20.0
 MAX_VELOCITY = 25.0

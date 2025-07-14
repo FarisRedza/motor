@@ -5,8 +5,8 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw
 
-import motor_box
-import remote_motor
+from . import gui_widget
+from . import remote_motor
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, *args, **kwargs) -> None:
@@ -80,7 +80,7 @@ class MainWindow(Adw.ApplicationWindow):
         add_motor_button.connect('clicked', self.on_add_motor)
 
     def on_add_motor(self, button: Gtk.Button, serial_number) -> None:
-        self.motor_control_box = motor_box.MotorControlPage(
+        self.motor_control_box = gui_widget.MotorControlPage(
             motor=remote_motor.Motor(
                 host=remote_motor.server_host,
                 port=remote_motor.server_port,

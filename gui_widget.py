@@ -1,5 +1,3 @@
-import sys
-import os
 import typing
 
 import gi
@@ -7,13 +5,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib, GObject
 
-sys.path.append(
-    os.path.abspath(os.path.join(
-        os.path.dirname(__file__),
-        os.path.pardir
-    ))
-)
-import motor.base_motor as base_motor
+from . import base_motor
 
 class MotorControls(Adw.PreferencesGroup):
     def __init__(
