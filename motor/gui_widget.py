@@ -1,6 +1,5 @@
 import typing
 import datetime
-import logging
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -341,14 +340,6 @@ class MotorControlPage(Adw.PreferencesPage):
             motor: base_motor.Motor
     ) -> None:
         super().__init__()
-        logging.basicConfig(
-            level=logging.INFO,
-            filename=f'~/Projects/logs/log_{datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")}.log',
-            encoding='utf-8',
-            filemode='a',
-            format='{asctime} - {levelname} - {message}',
-            style='{',
-        )
         self.motor = motor
 
         self.motor_controls_group = MotorControls(
