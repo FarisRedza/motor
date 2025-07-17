@@ -3,6 +3,8 @@ import socket
 import typing
 import json
 import time
+import datetime
+import logging
 
 from . import base_motor
 
@@ -85,6 +87,15 @@ class Motor(base_motor.Motor):
         self.host = host
         self.port = port
 
+        logging.basicConfig(
+            level=logging.INFO,
+            filename=f'~/Projects/logs/log_{datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.log',
+            encoding='utf-8',
+            filemode='a',
+            format='{asctime} - {levelname} - {message}',
+            style='{',
+        )
+
         self._sock = socket.socket(
             socket.AF_INET,
             socket.SOCK_STREAM
@@ -151,6 +162,7 @@ class Motor(base_motor.Motor):
                         update['direction']
                     )
                     moving = bool(update['moving'])
+                    logging.info(f'Motor {self.device_info.serial_number} - Position: {self.position}')
                 except Exception:
                     moving = False
 
