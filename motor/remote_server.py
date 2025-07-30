@@ -1,158 +1,277 @@
 import socket
 import threading
-import json
-import dataclasses
+import struct
+import enum
 
 from . import thorlabs_motor
 from . import base_motor
 
+class Command(enum.IntEnum):
+    LIST_DEVICES = 1
+    DEVICE_INFO = 2
+    GET_STATUS = 3
+    STOP = 4
+    MOVE_BY = 5
+    MOVE_TO = 6
+    THREADED_MOVE_BY = 7
+    THREADED_MOVE_TO = 8
+    JOG = 9
+
+class Response(enum.IntEnum):
+    ERROR = 0
+    LIST_DEVICES = 1
+    DEVICE_INFO = 2
+    STATUS = 3
+
+def recvall(size: int, sock: socket.socket) -> bytes:
+    data = bytearray()
+    while len(data) < size:
+        part = sock.recv(size - len(data))
+        if not part:
+            raise ConnectionError('Socket closed')
+        data.extend(part)
+    return data
+
+def receive_command(
+        sock: socket.socket
+) -> tuple[Command, list]:
+    header = recvall(size=8, sock=sock)
+    command_id, num_args = struct.unpack('II', header)
+
+    try:
+        command = Command(command_id)
+    except ValueError:
+        raise ValueError(f'Invalid command ID: {command_id}')
+
+    args = []    
+    for _ in range(num_args):
+        arg_len = struct.unpack('I', recvall(size=4, sock=sock))[0]
+        arg = recvall(size=arg_len, sock=sock)
+        args.append(arg.decode(encoding='utf-8'))
+
+    return command, args
+
+def send_message(
+        sock: socket.socket,
+        message: str,
+        response_id: Response
+) -> None:
+    payload = struct.pack(
+        f'I{len(message)}s',
+        len(message),
+        message.encode(encoding='utf-8')
+    )
+    header = struct.pack(
+        'IB',
+        len(payload) + 1,
+        response_id
+    )
+    sock.sendall(header + payload)
+
+def send_payload(
+        sock: socket.socket,
+        payload: bytes,
+        response_id: Response
+) -> None:
+    header = struct.pack('IB', len(payload) +1, response_id)
+    sock.sendall(header + payload)
+
 def handle_client(
-        connection: socket.socket,
+        sock: socket.socket,
         address
 ) -> None:
-    print(f'Connected by {address}')
-    with connection:
+    with sock:
         try:
             while True:
-                data = connection.recv(1024).decode()
-                if not data:
+                try:
+                    command, args = receive_command(sock=sock)
+                except (ValueError, ConnectionError) as e:
+                    print(f'[{address}] Disconnected: {e}')
                     break
 
-                request = json.loads(data)
-                command = str(request['command'])
-                match base_motor.Commands(command):
-                    case base_motor.Commands.LIST_MOTORS:
-                        response = {'motors': [dataclasses.asdict(m.device_info) for m in motors]}
+                if command == Command.LIST_DEVICES:
+                    dev_infos = [dev.device_info.serialise() for dev in devices]
+                    payload = struct.pack('I', len(dev_infos))
 
-                    case base_motor.Commands.GET_POSITION:
-                        serial_number = str(request['serial_number'])
-                        try:
-                            motor = next(
-                                m for m in motors if m.device_info.serial_number == serial_number
-                            )
-                        except:
-                            response = {'error': f'Motor {serial_number} not found'}
-                        else:
-                            response = {
-                                'position': motor.position,
-                                'moving': motor.is_moving,
-                                'direction': motor.direction.value,
-                                'acceleration': motor.acceleration,
-                                'max_velocity': motor.max_velocity
-                            }
+                    for info in dev_infos:
+                        payload += struct.pack('I', len(info)) + info
 
-                    case base_motor.Commands.STOP:
-                        serial_number = str(request['serial_number'])
-                        try:
-                            motor = next(
-                                m for m in motors if m.device_info.serial_number == serial_number
-                            )
-                        except:
-                            response = {'error': f'Motor {serial_number} not found'}
-                        else:
-                            motor.stop()
-                            response = {
-                                'status': f'Stopping {serial_number}',
-                                'moving': motor.is_moving,
-                            }
+                    send_payload(
+                        sock=sock,
+                        payload=payload,
+                        response_id=Response.LIST_DEVICES
+                    )
+                
+                elif args:
+                    serial_number = str(args[0])
+                    device = next(
+                        (d for d in devices if d.device_info.serial_number == serial_number),
+                        None
+                    )
+                    if not device:
+                        send_message(
+                            sock=sock,
+                            message=f'Device {serial_number} not found',
+                            response_id=Response.ERROR
+                        )
+                        continue
 
-                    case base_motor.Commands.MOVE_BY:
-                        serial_number = str(request['serial_number'])
-                        try:
-                            motor = next(
-                                m for m in motors if m.device_info.serial_number == serial_number
-                            )
-                        except:
-                            response = {'error': f'Motor {serial_number} not found'}
-                        else:
-                            angle = float(request['angle'])
-                            motor.threaded_move_by(
-                                angle=angle,
-                                acceleration=float(request['acceleration']),
-                                max_velocity=float(request['max_velocity'])
+                    match command:
+                        case Command.DEVICE_INFO:
+                            send_payload(
+                                sock=sock,
+                                payload=device.device_info.serialise(),
+                                response_id=Response.DEVICE_INFO
                             )
 
-                            response = {
-                                'status': f'Moving motor {serial_number} by {angle}',
-                                'moving': motor.is_moving
-                            }
-
-                    case base_motor.Commands.MOVE_TO:
-                        serial_number = str(request['serial_number'])
-                        try:
-                            motor = next(
-                                m for m in motors if m.device_info.serial_number == serial_number
-                            )
-                        except:
-                            response = {'error': f'Motor {serial_number} not found'}
-                        else:
-                            position = float(request['position'])
-                            motor.threaded_move_to(
-                                position=position,
-                                acceleration=float(request['acceleration']),
-                                max_velocity=float(request['max_velocity'])
+                        case Command.GET_STATUS:
+                            send_message(
+                                sock=sock,
+                                message=f'{device.position},{device.direction.value},{device.acceleration},{device.max_velocity}',
+                                response_id=Response.STATUS
                             )
 
-                            response = {
-                                'status': f'Moving motor {serial_number} to {position}',
-                                'moving': motor.is_moving
-                            }
-
-                    case base_motor.Commands.JOG:
-                        serial_number = str(request['serial_number'])
-                        try:
-                            motor = next(
-                                m for m in motors if m.device_info.serial_number == serial_number
-                            )
-                        except:
-                            response = {'error': f'Motor {serial_number} not found'}
-                        else:
-                            motor.jog(
-                                direction=base_motor.MotorDirection(request['direction']),
-                                acceleration=float(request['acceleration']),
-                                max_velocity=float(request['max_velocity'])
+                        case Command.STOP:
+                            device.stop()
+                            send_message(
+                                sock=sock,
+                                message=f'{device.direction.value}',
+                                response_id=Response.STATUS
                             )
 
-                            response = {
-                                'status': f'Jogging motor {serial_number}',
-                                'moving': motor.is_moving
-                            }
+                        case Command.MOVE_BY:
+                            if len(args) < 2:
+                                send_message(
+                                    sock=sock,
+                                    message='No angle provided',
+                                    response_id=Response.ERROR
+                                )
+                                continue
+                            try:
+                                angle=float(args[1])
+                                acceleration=float(args[2]) if args[2] else device.acceleration
+                                max_velocity=float(args[3]) if args[3] else device.max_velocity
+                                device.threaded_move_by(
+                                    angle=angle,
+                                    acceleration=acceleration,
+                                    max_velocity=max_velocity
+                                )
+                                send_message(
+                                    sock=sock,
+                                    message=f'{angle},{device.direction.value},{acceleration},{max_velocity}',
+                                    response_id=Response.STATUS
+                                )
+                            except Exception as e:
+                                send_message(
+                                    sock=sock,
+                                    message=str(e),
+                                    response_id=Response.ERROR
+                                )
 
-                    case _:
-                        response = {'error': 'Unkown command'}
+                        case Command.MOVE_TO:
+                            if len(args) < 2:
+                                send_message(
+                                    sock=sock,
+                                    message='No position provided',
+                                    response_id=Response.ERROR
+                                )
+                                continue
+                            try:
+                                position=float(args[1])
+                                acceleration=float(args[2]) if args[2] else device.acceleration
+                                max_velocity=float(args[3]) if args[3] else device.max_velocity
+                                device.threaded_move_to(
+                                    position=position,
+                                    acceleration=acceleration,
+                                    max_velocity=max_velocity
+                                )
+                                send_message(
+                                    sock=sock,
+                                    message=f'{position},{device.direction.value},{acceleration},{max_velocity}',
+                                    response_id=Response.STATUS
+                                )
+                            except Exception as e:
+                                send_message(
+                                    sock=sock,
+                                    message=str(e),
+                                    response_id=Response.ERROR
+                                )
 
-                connection.sendall((json.dumps(response) + "\n").encode())
+                        case Command.JOG:
+                            if len(args) < 2:
+                                send_message(
+                                    sock=sock,
+                                    message='No direction provided',
+                                    response_id=Response.ERROR
+                                )
+                                continue
+                            try:
+                                direction=base_motor.MotorDirection(value=args[1])
+                                acceleration=float(args[2]) if args[2] else device.acceleration
+                                max_velocity=float(args[3]) if args[3] else device.max_velocity
+                                device.jog(
+                                    direction=direction,
+                                    acceleration=acceleration,
+                                    max_velocity=max_velocity
+                                )
+                                send_message(
+                                    sock=sock,
+                                    message=f'{device.direction.value},{acceleration},{max_velocity}',
+                                    response_id=Response.STATUS
+                                )
+                            except Exception as e:
+                                send_message(
+                                    sock=sock,
+                                    message=str(e),
+                                    response_id=Response.ERROR
+                                )
 
-        except ConnectionResetError:
-            print(f'Connection lost with {address}')
+                        case _:
+                            send_message(
+                                sock=sock,
+                                message=f'Unsupported command: {command}',
+                                response_id=Response.ERROR
+                            )
+                    
+                else:
+                    send_message(
+                        sock=sock,
+                        message=f'No arguments provided',
+                        response_id=Response.ERROR    
+                    )
 
+        except Exception as e:
+            print(f'[{address}] Unexpected error: {e}')
         finally:
-            connection.close()
             print(f'Disconnected from {address}')
-        
 
 def start_server(
         host: str = '0.0.0.0',
         port: int = 5002
 ) -> None:
-    server = socket.socket(
+    sock = socket.socket(
         family=socket.AF_INET,
         type=socket.SOCK_STREAM
     )
+    sock.bind((host, port))
+    sock.listen()
+    print(f'Motor  server listening on {host}:{port}')
     try:
-        server.bind((host, port))
-        server.listen()
-
-        print(f'Motor server listening on {host}:{port}')
         while True:
-            conn, addr = server.accept()
+            conn, addr = sock.accept()
             threading.Thread(
                 target=handle_client,
                 args=(conn, addr),
+                daemon=True
             ).start()
+
     except KeyboardInterrupt:
-        server.close()
+        print('Motor server shutting down')
+    finally:
+        sock.close()
+        # for dev in devices:
+        #     dev.disconnect()
 
 if __name__ == '__main__':
-    motors = thorlabs_motor.list_motors()
+    devices = thorlabs_motor.list_motors()
     start_server()

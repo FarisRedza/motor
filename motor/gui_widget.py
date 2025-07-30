@@ -335,7 +335,6 @@ class DeviceInfoGroup(Adw.PreferencesGroup):
 class MotorControlPage(Adw.PreferencesPage):
     def __init__(
             self,
-            # motor: thorlabs_motor.Motor | remote_motor.Motor
             motor: base_motor.Motor
     ) -> None:
         super().__init__()
