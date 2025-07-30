@@ -1,7 +1,17 @@
+# Motor
+<img src='./data/screenshots/start_page.png' height='300'>
+<img src='./data/screenshots/device_page.png' height='300'>
+
+Control Thorlabs kinesis motors with a GUI. Supports both locally connected devices and remote devices with an included server script.
+
 # Setup
 `python3 -m venv .venv`\
 `source .venv/bin/activate`\
 `pip install -r requirements.txt`
+
+## Using the motor locally
+On Linux, if you are encountering a permissions issue, you will need to add your user to the `dialout` group\
+`sudo usermod -aG dialout $USER`
 
 # Server
 `python3 -m motor.remote_server`
@@ -35,5 +45,4 @@ Installing the dependencies using homebrew also installs Python 3.13. Apple's co
 `pacman -S mingw-w64-ucrt-x86_64-libadwaita mingw-w64-ucrt-x86_64-python3-gobject mingw-w64-ucrt-x86_64-python3-matplotlib`
 
 ## Usage
-`python3 -m motor.gui` for local motor\
-`python3 -m motor.remote_gui` for remote motor
+`python3 -m motor.gui`

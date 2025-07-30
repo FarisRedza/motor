@@ -1,4 +1,3 @@
-import threading
 import enum
 import dataclasses
 import struct
@@ -41,7 +40,7 @@ class DeviceInfo:
 class MotorDirection(enum.Enum):
     FORWARD = '-'
     BACKWARD = '+'
-    IDLE = None
+    IDLE = ''
 
 class Commands(enum.Enum):
     LIST_MOTORS = 'list_motors'
@@ -65,9 +64,6 @@ class Motor:
         self.step_size = 0.0
         self.acceleration = 0.0
         self.max_velocity = 0.0
-        
-        self._lock = threading.Lock()
-        self._position_polling = 1
 
     def move_by(
             self,
