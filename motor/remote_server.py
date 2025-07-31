@@ -2,6 +2,7 @@ import socket
 import threading
 import struct
 import enum
+import json
 
 from . import thorlabs_motor
 from . import base_motor
@@ -90,22 +91,18 @@ def handle_client(
                     break
 
                 if command == Command.LIST_DEVICES:
-                    dev_infos = [dev.device_info.serialise() for dev in devices]
-                    payload = struct.pack('I', len(dev_infos))
-
-                    for info in dev_infos:
-                        payload += struct.pack('I', len(info)) + info
-
+                    devices = [(m.device_info.serial_number, m.device_info.device_name) for m in motors]
                     send_payload(
                         sock=sock,
-                        payload=payload,
+                        payload=json.dumps(devices).encode(encoding='utf-8'),
                         response_id=Response.LIST_DEVICES
                     )
-                
+
+
                 elif args:
                     serial_number = str(args[0])
                     device = next(
-                        (d for d in devices if d.device_info.serial_number == serial_number),
+                        (d for d in motors if d.device_info.serial_number == serial_number),
                         None
                     )
                     if not device:
@@ -273,5 +270,5 @@ def start_server(
         #     dev.disconnect()
 
 if __name__ == '__main__':
-    devices = thorlabs_motor.list_motors()
+    motors = thorlabs_motor.get_all_motors()
     start_server()

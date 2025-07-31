@@ -2,6 +2,7 @@ import socket
 import struct
 import threading
 import time
+import json
 
 from . import base_motor
 from . import remote_server
@@ -44,11 +45,11 @@ def receive_response(sock: socket.socket) -> tuple[int, bytes]:
         )
         return response, payload
 
-def list_device_info(
+def list_thorlabs_motors(
         host: str | None = None,
         port: int | None = None,
         sock: socket.socket | None = None
-) -> list[base_motor.DeviceInfo]:
+) -> list[tuple[str,str]]:
     if sock:
         host, port = sock.getpeername()
     elif host and port:
@@ -67,24 +68,16 @@ def list_device_info(
     )
     response, payload = receive_response(sock=sock)
     
-    device_infos = []
+    devices: list[tuple[str, str]] = []
     if response == remote_server.Response.LIST_DEVICES:
-        (num_devices,) = struct.unpack('I', payload[:4])
-        offset = 4
-        for _ in range(num_devices):
-            (length,) = struct.unpack('I', payload[offset: offset + 4])
-            offset += 4
-            info_bytes = payload[offset:offset + length]
-            offset += length
-            dev_info = base_motor.DeviceInfo.deserialise(
-                payload=info_bytes
-            )
-            device_infos.append(dev_info)
+        devs = json.loads(payload.decode(encoding='utf-8'))
+        for d in devs:
+            devices.append((str(d[0]), str(d[1])))
 
     else:
         print(f'Unexpected response: {response}')
 
-    return device_infos
+    return devices
 
 class RemoteMotor(base_motor.Motor):
     def __init__(
@@ -253,7 +246,7 @@ class RemoteMotor(base_motor.Motor):
         msg_len, = struct.unpack('I', payload[:4])
         status_msg = payload[4:4 + msg_len].decode(encoding='utf-8')
         update = status_msg.split(',')
-        self.direction = base_motor.MotorDirection(value=update[1])
+        self.direction = base_motor.MotorDirection(value=update[0])
         self._start_tracking_position()
 
     def _handle_response(
@@ -349,13 +342,17 @@ class RemoteMotor(base_motor.Motor):
             self._position_thread.join()
 
 if __name__ == '__main__':
-    m = RemoteMotor(
-        serial_number='55356974',
+    # m = RemoteMotor(
+    #     serial_number='55356974',
+    #     host='127.0.0.1',
+    #     port=5002
+    # )
+    # m.move_to(
+    #     position=0,
+    #     acceleration=20,
+    #     max_velocity=25
+    # )
+    list_thorlabs_motors(
         host='127.0.0.1',
         port=5002
-    )
-    m.move_to(
-        position=0,
-        acceleration=20,
-        max_velocity=25
     )

@@ -4,63 +4,110 @@ import threading
 import time
 import math
 
-import pylablib.devices.Thorlabs
+import pylablib.devices.Thorlabs.kinesis
 
 from . import base_motor
 
 MAX_ACCELERATION = 20.0
 MAX_VELOCITY = 25.0
 
-def list_thorlabs_motors() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
-    system = platform.system()
-    if system == 'Linux':
-        return list_thorlabs_motors_linux()
-    elif system == 'Windows':
-        return list_thorlabs_motors_windows()
-    else:
-        raise NotImplementedError(f'Unsupported system: {system}')
+# def list_thorlabs_motors(
+#         inpsect: bool = False
+# ) -> list[pylablib.devices.Thorlabs.kinesis.KinesisMotor]:
+#     system = platform.system()
+#     if system == 'Linux':
+#         return list_thorlabs_motors_linux()
+#     elif system == 'Windows':
+#         return list_thorlabs_motors_windows()
+#     else:
+#         raise NotImplementedError(f'Unsupported system: {system}')
 
-def list_thorlabs_motors_linux() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
+# def list_thorlabs_motors_linux() -> list[pylablib.devices.Thorlabs.kinesis.KinesisMotor]:
+#     device_path = pathlib.Path('/dev/serial/by-id')
+#     if not device_path.exists():
+#         return []
+#     motors = []
+#     for symlink in device_path.iterdir():
+#         if 'Thorlabs' in symlink.name:
+#             try:
+#                 motors.append(
+#                     pylablib.devices.Thorlabs.kinesis.KinesisMotor(
+#                         conn=str(symlink.resolve()),
+#                         scale='stage'
+#                     )
+#                 )
+#             except IndexError:
+#                 continue
+#     return motors
+
+# def list_thorlabs_motors_windows(
+#         inpsect: bool = False
+# ) -> list[pylablib.devices.Thorlabs.kinesis.KinesisMotor]:
+#     motors = []
+#     for device in pylablib.devices.Thorlabs.kinesis.list_kinesis_devices():
+#         try:
+#             motor = pylablib.devices.Thorlabs.kinesis.KinesisMotor(
+#                     conn=device[0],
+#                     scale='stage'
+#                 )
+#             if inpsect == True:
+#                 motor.close()
+#             motors.append(motor)
+#         except IndexError:
+#             continue
+#     return motors
+
+def list_thorlabs_motors() -> list[tuple[str, str]]:
+    system = platform.system()
+    match system:
+        case 'Linux':
+            return list_thorlabs_motors_linux()
+
+        case 'Windows':
+            return list_thorlabs_motors_windows()
+
+        case _:
+            raise NotImplementedError(f'Unsupported system: {system}')
+        
+def list_thorlabs_motors_linux() -> list[tuple[str, str]]:
     device_path = pathlib.Path('/dev/serial/by-id')
     if not device_path.exists():
         return []
-    motors = []
+
+    motors: list[tuple[str, str]] = []
     for symlink in device_path.iterdir():
         if 'Thorlabs' in symlink.name:
             try:
+                parts = symlink.name.removeprefix('usb-Thorlabs_').split('-if')[0].split('_')
+                serial_number = parts[-1]
+                device_name = ' '.join(parts[:-1])
                 motors.append(
-                    pylablib.devices.Thorlabs.KinesisMotor(
-                        conn=str(symlink.resolve()),
-                        scale='stage'
-                    )
+                    (serial_number, device_name)
                 )
             except IndexError:
                 continue
     return motors
 
-def list_thorlabs_motors_windows() -> list[pylablib.devices.Thorlabs.KinesisMotor]:
+def list_thorlabs_motors_windows() -> list[tuple[str, str]]:
     motors = []
-    for device in pylablib.devices.Thorlabs.list_kinesis_devices():
-        try:
-            motors.append(
-                pylablib.devices.Thorlabs.KinesisMotor(
-                    conn=device[0],
-                    scale='stage'
-                )
-            )
-        except IndexError:
-            continue
+    for device in pylablib.devices.Thorlabs.kinesis.list_kinesis_devices():
+        if device[1] == 'Kinesis K10CR1 Rotary Stage':
+            motors.append(device)
     return motors
 
 class Motor(base_motor.Motor):
-    def __init__(self, serial_number: str) -> None:
-        self._lock = threading.Lock()
-        self._stop_event = threading.Event()
-        self._position_thread: threading.Thread | None = None
-        self._movement_thread: threading.Thread | None = None
-        self._position_polling = 0.1
+    def __init__(
+            self,
+            serial_number: str | None = None,
+            motor: pylablib.devices.Thorlabs.kinesis.KinesisMotor | None = None
+        ) -> None:
+        if serial_number:
+            self._get_motor(serial_number=serial_number)
+        elif motor:
+            self._motor = motor
+        else:
+            raise RuntimeError('Must provide a serial number or KinesisMotor')
 
-        self._motor = self._get_motor(serial_number)
         device_info = self._motor.get_device_info()
         self.device_info = base_motor.DeviceInfo(
             device_name=device_info.notes,
@@ -75,6 +122,12 @@ class Motor(base_motor.Motor):
         self.step_size = 5.0
         self.acceleration = MAX_ACCELERATION
         self.max_velocity = MAX_VELOCITY
+
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._position_thread: threading.Thread | None = None
+        self._movement_thread: threading.Thread | None = None
+        self._position_polling = 0.1
 
     def stop(self):
         with self._lock:
@@ -178,11 +231,36 @@ class Motor(base_motor.Motor):
         self._movement_thread.start()
 
     def _get_motor(self, serial_number: str):
-        motors = list_thorlabs_motors()
-        for m in motors:
-            if str(m.get_device_info().serial_no) == serial_number:
-                return m
-        raise RuntimeError(f'Motor {serial_number} not found')
+        system = platform.system()
+        match system:
+            case 'Linux':
+                symlink = next(
+                    (s for s in pathlib.Path('/dev/serial/by-id').iterdir() if serial_number in s.name),
+                    None
+                )
+                if symlink is not None:
+                    self._motor = pylablib.devices.Thorlabs.kinesis.KinesisMotor(
+                        conn=str(symlink.resolve()),
+                        scale='stage'
+                    )
+                else:
+                    raise RuntimeError(f'Motor {serial_number} not found')
+
+            case 'Windows':
+                device = next(
+                    (s for s in list_thorlabs_motors_windows() if serial_number in s[0]),
+                    None
+                )
+                if device is not None:
+                    self._motor = pylablib.devices.Thorlabs.kinesis.KinesisMotor(
+                        conn=device[0],
+                        scale='stage'
+                    )
+                else:
+                    raise RuntimeError(f'Motor {serial_number} not found')
+
+            case _:
+                raise NotImplementedError(f'Unsupported system: {system}')
 
     def _track_position(self):
         while not self._stop_event.is_set():
@@ -226,16 +304,19 @@ class Motor(base_motor.Motor):
             return 2 * t_accel
         return 2 * t_accel + angle_cruise / max_velocity
 
-def list_motors() -> list[Motor]:
-    return [
-        Motor(
-            serial_number=str(m.get_device_info().serial_no)
-        )
-        for m in list_thorlabs_motors()
-    ]
+def get_all_motors() -> list[Motor]:
+    motors = []
+    for m in list_thorlabs_motors():
+        try:
+            motor = Motor(serial_number=m[0])
+        except:
+            continue
+        else:
+            motors.append(motor)
+    return motors
 
 if __name__ == '__main__':
-    for motor in list_motors():
+    for motor in get_all_motors():
         motor.jog(
             direction=base_motor.MotorDirection.FORWARD,
             acceleration=20.0,
