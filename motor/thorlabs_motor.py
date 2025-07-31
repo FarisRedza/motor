@@ -8,55 +8,6 @@ import pylablib.devices.Thorlabs.kinesis
 
 from . import base_motor
 
-MAX_ACCELERATION = 20.0
-MAX_VELOCITY = 25.0
-
-# def list_thorlabs_motors(
-#         inpsect: bool = False
-# ) -> list[pylablib.devices.Thorlabs.kinesis.KinesisMotor]:
-#     system = platform.system()
-#     if system == 'Linux':
-#         return list_thorlabs_motors_linux()
-#     elif system == 'Windows':
-#         return list_thorlabs_motors_windows()
-#     else:
-#         raise NotImplementedError(f'Unsupported system: {system}')
-
-# def list_thorlabs_motors_linux() -> list[pylablib.devices.Thorlabs.kinesis.KinesisMotor]:
-#     device_path = pathlib.Path('/dev/serial/by-id')
-#     if not device_path.exists():
-#         return []
-#     motors = []
-#     for symlink in device_path.iterdir():
-#         if 'Thorlabs' in symlink.name:
-#             try:
-#                 motors.append(
-#                     pylablib.devices.Thorlabs.kinesis.KinesisMotor(
-#                         conn=str(symlink.resolve()),
-#                         scale='stage'
-#                     )
-#                 )
-#             except IndexError:
-#                 continue
-#     return motors
-
-# def list_thorlabs_motors_windows(
-#         inpsect: bool = False
-# ) -> list[pylablib.devices.Thorlabs.kinesis.KinesisMotor]:
-#     motors = []
-#     for device in pylablib.devices.Thorlabs.kinesis.list_kinesis_devices():
-#         try:
-#             motor = pylablib.devices.Thorlabs.kinesis.KinesisMotor(
-#                     conn=device[0],
-#                     scale='stage'
-#                 )
-#             if inpsect == True:
-#                 motor.close()
-#             motors.append(motor)
-#         except IndexError:
-#             continue
-#     return motors
-
 def list_thorlabs_motors() -> list[tuple[str, str]]:
     system = platform.system()
     match system:
@@ -120,8 +71,8 @@ class Motor(base_motor.Motor):
         self.direction = base_motor.MotorDirection.IDLE
         self.is_moving = self._motor.is_moving()
         self.step_size = 5.0
-        self.acceleration = MAX_ACCELERATION
-        self.max_velocity = MAX_VELOCITY
+        self.acceleration = 20.0
+        self.max_velocity = 25.0
 
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
