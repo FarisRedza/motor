@@ -8,7 +8,6 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw
 
 from . import gui_widget
-from . import base_motor
 from . import thorlabs_motor
 from . import remote_motor
 
@@ -16,7 +15,6 @@ class DeviceListGroup(Adw.PreferencesGroup):
     def __init__(
             self,
             title,
-            # devices_infos: list[base_motor.DeviceInfo],
             devices: list[tuple[str, str]],
             set_device_callback: typing.Callable,
             remote: bool = False
@@ -24,37 +22,6 @@ class DeviceListGroup(Adw.PreferencesGroup):
         super().__init__(title=title)
         self.set_device_callback = set_device_callback
         self.remote = remote
-        
-        # if len(devices_infos) == 0:
-        #     no_devices_row = Adw.ActionRow(
-        #         child=Gtk.Label(
-        #             label='No devices found',
-        #             valign=Gtk.Align.CENTER,
-        #             vexpand=True
-        #         )
-        #     )
-        #     self.add(child=no_devices_row)
-
-        # else:
-        #     for d in devices_infos:
-        #         device_row = Adw.ActionRow(
-        #             title=d.device_name,
-        #             subtitle=f'Serial number: {d.serial_number}'
-        #         )
-        #         self.add(child=device_row)
-        #         connect_device_button = Gtk.Button(
-        #             label='Connect',
-        #             valign=Gtk.Align.CENTER
-        #         )
-        #         connect_device_button.connect(
-        #             'clicked',
-        #             lambda button,
-        #             serial_number=d.serial_number: self.on_connect_device(
-        #                 button=button,
-        #                 serial_number=serial_number
-        #             )
-        #         )
-        #         device_row.add_suffix(widget=connect_device_button)
 
         if len(devices) == 0:
             no_devices_row = Adw.ActionRow(
@@ -199,15 +166,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.main_stack.add_child(child=self.device_select_page)
         self.main_stack.set_visible_child(child=self.device_select_page)
 
-        # local_device_infos = [
-        #     d.device_info for d in thorlabs_motor.get_all_motors()
-        # # ]
-        # local_device_group = DeviceListGroup(
-        #     title='Local Devices',
-        #     devices_infos=local_device_infos,
-        #     set_device_callback=self.set_device
-        # )
-        # self.device_select_page.add(group=local_device_group)
         local_devices = thorlabs_motor.list_thorlabs_motors()
         local_devices_group = DeviceListGroup(
             title='Local Devices',
@@ -233,16 +191,14 @@ class MainWindow(Adw.ApplicationWindow):
         sock.connect((self.host, self.port))
         self._sock = sock
 
-        remote_device_infos = remote_motor.list_thorlabs_motors(
+        remote_devices = remote_motor.list_thorlabs_motors(
             sock=self._sock
         )
-        remote_devices = [(d[0], d[1]) for d in remote_device_infos]
 
         self.device_select_page.remove(group=self.remote_connection_group)
         self.device_select_page.add(
             group=DeviceListGroup(
                 title='Remote Devices',
-                # devices_infos=remote_device_infos,
                 devices=remote_devices,
                 set_device_callback=self.set_device,
                 remote=True
