@@ -46,7 +46,7 @@ def list_thorlabs_motors_windows() -> list[tuple[str, str]]:
             motors.append(device)
     return motors
 
-class Motor(base_motor.Motor):
+class ThorlabsMotor(base_motor.Motor):
     def __init__(
             self,
             serial_number: str | None = None,
@@ -259,11 +259,11 @@ class Motor(base_motor.Motor):
             return 2 * t_accel
         return 2 * t_accel + angle_cruise / max_velocity
 
-def get_all_motors() -> list[Motor]:
+def get_all_motors() -> list[ThorlabsMotor]:
     motors = []
     for m in list_thorlabs_motors():
         try:
-            motor = Motor(serial_number=m[0])
+            motor = ThorlabsMotor(serial_number=m[0])
         except:
             continue
         else:

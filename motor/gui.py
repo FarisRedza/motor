@@ -208,7 +208,7 @@ class MainWindow(Adw.ApplicationWindow):
     def set_device(self, serial_number: str, remote: bool = False) -> None:
         if not remote:
             self.motor_page = gui_widget.MotorControlPage(
-                motor=thorlabs_motor.Motor(
+                motor=thorlabs_motor.ThorlabsMotor(
                     serial_number=serial_number
                 )
             )
