@@ -80,6 +80,10 @@ class Motor(base_motor.Motor):
         self._movement_thread: threading.Thread | None = None
         self._position_polling = 0.1
 
+    def disconnect(self) -> None:
+        self.stop()
+        self._motor.close()
+
     def stop(self):
         with self._lock:
             self._motor.stop()
