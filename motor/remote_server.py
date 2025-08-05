@@ -17,12 +17,14 @@ class Command(enum.IntEnum):
     THREADED_MOVE_BY = 7
     THREADED_MOVE_TO = 8
     JOG = 9
+    GET_POSITION = 10
 
 class Response(enum.IntEnum):
     ERROR = 0
     LIST_DEVICES = 1
     DEVICE_INFO = 2
     STATUS = 3
+    POSITION = 4
 
 def recvall(size: int, sock: socket.socket) -> bytes:
     data = bytearray()
@@ -126,6 +128,13 @@ def handle_client(
                                 sock=sock,
                                 message=f'{device.position},{device.direction.value},{device.acceleration},{device.max_velocity}',
                                 response_id=Response.STATUS
+                            )
+
+                        case Command.GET_POSITION:
+                            send_message(
+                                sock=sock,
+                                message=f'{device.position},{device.direction.value},{device.acceleration},{device.max_velocity}',
+                                response_id=Response.POSITION
                             )
 
                         case Command.STOP:

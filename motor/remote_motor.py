@@ -126,6 +126,7 @@ class RemoteMotor(base_motor.Motor):
         msg_len, = struct.unpack('I', payload[:4])
         status_msg = payload[4:4 + msg_len].decode(encoding='utf-8')
         self.direction = base_motor.MotorDirection(value=status_msg)
+        # self.direction = base_motor.MotorDirection.IDLE
         self._stop_tracking_position()
         
     def move_by(
@@ -308,11 +309,11 @@ class RemoteMotor(base_motor.Motor):
                 try:
                     send_command(
                         sock=self._sock,
-                        command=remote_server.Command.GET_STATUS,
+                        command=remote_server.Command.GET_POSITION,
                         args=(self.device_info.serial_number,)
                     )
                     payload = self._handle_response(
-                        expected_response_id=remote_server.Response.STATUS
+                        expected_response_id=remote_server.Response.POSITION
                     )
                     msg_len, = struct.unpack('I', payload[:4])
                     status_msg = payload[4:4 + msg_len].decode(encoding='utf-8')
