@@ -1,7 +1,7 @@
 [project]
 name = "motor"
 version = "0.1"
-dependencies = ["pylablib"]
+dependencies = ["pylablib-lightweight"]
 
 [project.urls]
 "Homepage" = "https://github.com/FarisRedza/motor"

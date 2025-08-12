@@ -5,6 +5,7 @@ import enum
 import json
 
 from . import thorlabs_motor
+from . import elliptec_motor
 from . import base_motor
 
 class Command(enum.IntEnum):
@@ -279,5 +280,5 @@ def start_server(
         #     dev.disconnect()
 
 if __name__ == '__main__':
-    motors = thorlabs_motor.get_all_motors()
+    motors = thorlabs_motor.get_all_motors() + elliptec_motor.get_all_motors()
     start_server()

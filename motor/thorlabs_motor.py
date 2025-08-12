@@ -157,7 +157,8 @@ class ThorlabsMotor(base_motor.Motor):
         self._start_tracking_position()
 
     def threaded_move_by(
-            self, angle: float,
+            self,
+            angle: float,
             acceleration: float,
             max_velocity: float
     ) -> None:

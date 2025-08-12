@@ -9,6 +9,7 @@ from gi.repository import Gtk, Adw
 
 from . import gui_widget
 from . import thorlabs_motor
+from . import elliptec_motor
 from . import remote_motor
 
 class DeviceListGroup(Adw.PreferencesGroup):
@@ -35,6 +36,7 @@ class DeviceListGroup(Adw.PreferencesGroup):
 
         else:
             for d in devices:
+                print(d)
                 device_row = Adw.ActionRow(
                     title=d[1],
                     subtitle=f'Serial number: {d[0]}'
@@ -47,16 +49,16 @@ class DeviceListGroup(Adw.PreferencesGroup):
                 connect_device_button.connect(
                     'clicked',
                     lambda button,
-                    serial_number=d[0]: self.on_connect_device(
+                    d=d: self.on_connect_device(
                         button=button,
-                        serial_number=serial_number
+                        device=d
                     )
                 )
                 device_row.add_suffix(widget=connect_device_button)
 
-    def on_connect_device(self, button: Gtk.Button, serial_number: str) -> None:
+    def on_connect_device(self, button: Gtk.Button, device: tuple[str, str]) -> None:
         self.set_device_callback(
-            serial_number=serial_number,
+            device=device,
             remote=self.remote
         )
 
@@ -166,7 +168,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.main_stack.add_child(child=self.device_select_page)
         self.main_stack.set_visible_child(child=self.device_select_page)
 
-        local_devices = thorlabs_motor.list_thorlabs_motors()
+        local_devices = thorlabs_motor.list_thorlabs_motors() + elliptec_motor.list_elliptec_motors()
         local_devices_group = DeviceListGroup(
             title='Local Devices',
             devices=local_devices,
@@ -205,17 +207,27 @@ class MainWindow(Adw.ApplicationWindow):
             )
         )
 
-    def set_device(self, serial_number: str, remote: bool = False) -> None:
+    def set_device(self, device: tuple[str, str], remote: bool = False) -> None:
         if not remote:
-            self.motor_page = gui_widget.MotorControlPage(
-                motor=thorlabs_motor.ThorlabsMotor(
-                    serial_number=serial_number
-                )
-            )
+            match device[1]:
+                case 'Thorlabs':
+                    self.motor_page = gui_widget.MotorControlPage(
+                        motor=thorlabs_motor.ThorlabsMotor(
+                            serial_number=device[0]
+                        )
+                    )
+                case 'Elliptec':
+                    self.motor_page = gui_widget.MotorControlPage(
+                        motor=elliptec_motor.ElliptecMotor(
+                            serial_number=device[0]
+                        )
+                    )
+                case _:
+                    raise NotImplementedError(f'Unsupported motor: {device[1]}')
         else:
             self.motor_page = gui_widget.MotorControlPage(
                 motor=remote_motor.RemoteMotor(
-                    serial_number=serial_number,
+                    serial_number=device[0],
                     sock=self._sock
                 )
             )
