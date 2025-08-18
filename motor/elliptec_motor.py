@@ -44,13 +44,6 @@ class ElliptecMotor(base_motor.Motor):
             self,
             serial_number: str
     ) -> None:
-        self._get_motor(serial_number=serial_number)
-        position = self._motor.get_angle()
-        if isinstance(position, float):
-            self.position = float(position)
-        else:    
-            raise RuntimeError('Unable to get motor position')           
-        
         self.direction = base_motor.MotorDirection.IDLE
         self.step_size = 5.0
         self.acceleration = 0.0
@@ -62,11 +55,21 @@ class ElliptecMotor(base_motor.Motor):
         self._position_thread: threading.Thread | None = None
         self._position_polling = 0.1
 
+        self._get_motor(serial_number=serial_number)
+        self.position = self._get_angle()        
+        
+        self._motor.send_instruction(
+            instruction=b'sv',
+            message='64'
+        )
+
     def disconnect(self) -> None:
         self._motor.close_connection()
 
     def stop(self) -> None:
-        self._motor.send_instruction(instruction=b'st')
+        with self._lock:
+            self._motor.send_instruction(instruction=b'st')
+        self.position = self._get_angle()
 
     def move_by(
             self,
@@ -75,22 +78,26 @@ class ElliptecMotor(base_motor.Motor):
             max_velocity: float = 0
     ) -> bool:
         self._start_tracking_position()
-        direction = 1 if angle >= 0 else -1
-        self.direction = base_motor.MotorDirection.FORWARD if angle > 0 else base_motor.MotorDirection.BACKWARD
+        match angle:
+            case a if a > 0:
+                self.direction = base_motor.MotorDirection.FORWARD
+            case a if a < 0:
+                self.direction = base_motor.MotorDirection.BACKWARD
+            case 0:
+                self.direction = base_motor.MotorDirection.IDLE
+            case _:
+                raise RuntimeError('Invalid angle')
 
-        remaining = abs(angle)
-        while remaining > 0:
-            step = min(remaining, 360) * direction
-            try:
-                with self._lock:
-                    self._motor.shift_angle(angle=step)
-            except Exception as e:
-                print(f'Exception in move_by: {e}')
-                return False
-            remaining -= min(remaining, 360)
-
-        self._stop_tracking_position()
-        return True
+        try:
+            with self._lock:
+                self._motor.shift_angle(angle=angle)
+        except Exception as e:
+            print(f'Exception in move_by: {e}')
+            self._stop_tracking_position()
+            return False
+        else:
+            self._stop_tracking_position()
+            return True
     
     def move_to(
             self,
@@ -100,6 +107,10 @@ class ElliptecMotor(base_motor.Motor):
     ) -> bool:
         delta = position - self.position
         self.move_by(angle=delta)
+
+        # self._motor.set_angle(angle=position)
+
+        return True
     
     def jog(
             self,
@@ -107,8 +118,26 @@ class ElliptecMotor(base_motor.Motor):
             acceleration: float = 0,
             max_velocity: float = 0
     ) -> None:
-        self._motor.set_jog_step(angle=0)
-        self.position = self._motor.jog(direction=direction.name.lower())
+        match direction:
+            case base_motor.MotorDirection.FORWARD:
+                dir = 'fw'
+            case base_motor.MotorDirection.BACKWARD:
+                dir = 'bw'
+            case base_motor.MotorDirection.IDLE:
+                dir = None
+            case _:
+                raise RuntimeError('Invalid direction')
+
+        if dir:
+            with self._lock:
+                self._motor.send_instruction(
+                    instruction=b'sv',
+                    message='44'
+                )
+                self._motor.set_jog_step(angle=0)
+                self._motor.send_instruction(
+                    instruction=dir.encode(encoding='utf-8')
+                )
 
     def threaded_move_by(
             self,
@@ -154,10 +183,12 @@ class ElliptecMotor(base_motor.Motor):
                         self._motor = elliptec.Rotator(controller=controller)
                         self.device_info = base_motor.DeviceInfo(
                             device_name='Elliptec',
-                            model='14',
+                            model=dev_info['Motor Type'],
                             serial_number=serial_number,
                             firmware_version=dev_info['Firmware']
                         )
+                        self._range = dev_info['Range']
+                        self._pulse_per_rev = dev_info['Pulse/Rev']
 
                     else:
                         controller.close_connection()
@@ -170,12 +201,10 @@ class ElliptecMotor(base_motor.Motor):
 
     def _track_position(self) -> None:
         while not self._stop_event.is_set():
-            with self._lock:
-                try:
-                    self.position = self._motor.get_angle()
-                    print(self.position)
-                except Exception as e:
-                    print(f'[tracking error] {e}')
+            try:
+                self.position = self._get_angle()
+            except Exception as e:
+                print(f'[tracking error] {e}')
             time.sleep(self._position_polling)
 
     def _start_tracking_position(self) -> None:
@@ -188,12 +217,28 @@ class ElliptecMotor(base_motor.Motor):
         )
         self._position_thread.start()
 
-    def _stop_tracking_position(self):
+    def _stop_tracking_position(self) -> None:
         self._stop_event.set()
         if self._position_thread:
             self._position_thread.join()
         self._position_thread = None
         self.direction = base_motor.MotorDirection.IDLE
+
+    def _get_angle(self) -> float:
+        angle = None
+        while angle is None:
+            with self._lock:
+                angle = self._motor.get_angle()
+                # position = self._motor.send_instruction(instruction=b'gp')[2]
+                # angle = self._position_to_angle(position=int(position))
+                # print(position, angle)
+        return float(angle)
+    
+    def _position_to_angle(self, position: int) -> float:
+        return position / self._pulse_per_rev * self._range 
+    
+    def _angle_to_position(self, angle: float) -> int:
+        return int(angle / self._range * self._pulse_per_rev)
 
 
 def get_all_motors() -> list[ElliptecMotor]:
@@ -210,11 +255,12 @@ def get_all_motors() -> list[ElliptecMotor]:
 
 if __name__ == '__main__':
     print(list_elliptec_motors())
-    
-    motors = get_all_motors()
-    
-    for motor in motors:
-        motor.move_to(position=300)
-        motor.move_to(position=-300)
-        motor.move_to(position=0)
-        print(motor.position)
+
+    motor = get_all_motors()[0]
+    # motor.move_by(angle=100)
+    try:
+        print(motor._motor.send_instruction(instruction=b'gp'))
+        print(motor._position_to_angle(38213))
+    except KeyboardInterrupt:
+        motor.stop()
+    motor.disconnect()
