@@ -132,7 +132,8 @@ class ElliptecMotor(base_motor.Motor):
             with self._lock:
                 self._motor.send_instruction(
                     instruction=b'sv',
-                    message='44'
+                    # message='44'
+                    message='32'
                 )
                 self._motor.set_jog_step(angle=0)
                 self._motor.send_instruction(
@@ -175,23 +176,24 @@ class ElliptecMotor(base_motor.Motor):
             case 'Linux':
                 symlinks = pathlib.Path('/dev/serial/by-id').iterdir()
                 for s in symlinks:
-                    controller = elliptec.Controller(
-                        port=str(s.resolve())
-                    )
-                    dev_info = controller.send_instruction(instruction=b'in')
-                    if isinstance(dev_info, dict) and serial_number in dev_info.values():
-                        self._motor = elliptec.Rotator(controller=controller)
-                        self.device_info = base_motor.DeviceInfo(
-                            device_name='Elliptec',
-                            model=dev_info['Motor Type'],
-                            serial_number=serial_number,
-                            firmware_version=dev_info['Firmware']
+                    if 'FTDI_FT230X' in s.name:
+                        controller = elliptec.Controller(
+                            port=str(s.resolve())
                         )
-                        self._range = dev_info['Range']
-                        self._pulse_per_rev = dev_info['Pulse/Rev']
+                        dev_info = controller.send_instruction(instruction=b'in')
+                        if isinstance(dev_info, dict) and serial_number in dev_info.values():
+                            self._motor = elliptec.Rotator(controller=controller)
+                            self.device_info = base_motor.DeviceInfo(
+                                device_name='Elliptec',
+                                model=dev_info['Motor Type'],
+                                serial_number=serial_number,
+                                firmware_version=dev_info['Firmware']
+                            )
+                            self._range = dev_info['Range']
+                            self._pulse_per_rev = dev_info['Pulse/Rev']
 
-                    else:
-                        controller.close_connection()
+                        else:
+                            controller.close_connection()
 
                 if not self._motor:
                     raise RuntimeError(f'Motor {serial_number} not found')

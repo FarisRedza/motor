@@ -210,7 +210,7 @@ class MainWindow(Adw.ApplicationWindow):
     def set_device(self, device: tuple[str, str], remote: bool = False) -> None:
         if not remote:
             match device[1]:
-                case 'Thorlabs':
+                case 'Thorlabs' | 'Kinesis K10CR1 Rotary Stage':
                     self.motor_page = gui_widget.MotorControlPage(
                         motor=thorlabs_motor.ThorlabsMotor(
                             serial_number=device[0]

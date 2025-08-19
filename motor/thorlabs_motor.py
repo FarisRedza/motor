@@ -272,11 +272,16 @@ def get_all_motors() -> list[ThorlabsMotor]:
     return motors
 
 if __name__ == '__main__':
-    for motor in get_all_motors():
-        motor.jog(
-            direction=base_motor.MotorDirection.FORWARD,
-            acceleration=20.0,
-            max_velocity=20.0
-        )
-        time.sleep(5)
-        motor.stop()
+    motor = ThorlabsMotor(serial_number='55356974')
+    # print(list_thorlabs_motors())
+    # for motor in get_all_motors():
+    #     print(motor.position)
+    #     # motor.jog(
+    #     #     direction=base_motor.MotorDirection.FORWARD,
+    #     #     acceleration=20.0,
+    #     #     max_velocity=20.0
+    #     # )
+    #     # time.sleep(5)
+    #     # motor.stop()
+    #     # print(motor.position)
+    #     # motor.disconnect()
