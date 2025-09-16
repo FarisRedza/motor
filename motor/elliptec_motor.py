@@ -44,6 +44,10 @@ class ElliptecMotor(base_motor.Motor):
             self,
             serial_number: str
     ) -> None:
+        self._motor_max_velocity_serial = 64
+        self._motor_max_velocity = 430
+        self._motor_min_velocity = 0.5 * self._motor_max_velocity
+
         self.direction = base_motor.MotorDirection.IDLE
         self.step_size = 5.0
         self.acceleration = 0.0
@@ -62,6 +66,12 @@ class ElliptecMotor(base_motor.Motor):
             instruction=b'sv',
             message='64'
         )
+    
+    def _velocity_to_serial(self, velocity: int) -> int:
+        return int(velocity/self._motor_max_velocity_serial) * self._motor_max_velocity_serial
+    
+    def _serial_to_velocity(self, serial: int) -> float:
+        return (serial / self._motor_max_velocity_serial) * self._motor_max_velocity
 
     def disconnect(self) -> None:
         self._motor.close_connection()
@@ -238,10 +248,9 @@ class ElliptecMotor(base_motor.Motor):
     
     def _position_to_angle(self, position: int) -> float:
         return position / self._pulse_per_rev * self._range 
-    
+
     def _angle_to_position(self, angle: float) -> int:
         return int(angle / self._range * self._pulse_per_rev)
-
 
 def get_all_motors() -> list[ElliptecMotor]:
     motors = []
@@ -257,12 +266,18 @@ def get_all_motors() -> list[ElliptecMotor]:
 
 if __name__ == '__main__':
     print(list_elliptec_motors())
-
     motor = get_all_motors()[0]
-    # motor.move_by(angle=100)
-    try:
-        print(motor._motor.send_instruction(instruction=b'gp'))
-        print(motor._position_to_angle(38213))
-    except KeyboardInterrupt:
-        motor.stop()
-    motor.disconnect()
+
+    motor._motor.send_instruction(
+        instruction=b'sv',
+        message='32'
+    )
+    angle = 360
+    for _ in range(2):
+        motor._motor.set_angle(angle=0)
+        time.sleep(1)
+        start_time = time.time()
+        motor._motor.shift_angle(angle=angle)
+        end_time = time.time() - start_time
+        print(end_time)
+        print(f'degrees per second = {angle/end_time}')
