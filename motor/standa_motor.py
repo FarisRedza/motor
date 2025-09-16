@@ -29,12 +29,16 @@ def list_standa_motors_linux() -> list[tuple[str, str]]:
     for symlink in device_path.iterdir():
         if 'XIMC_Motor_Controller' in symlink.name:
             try:
-                parts = symlink.name.removeprefix('usb-XIMC_XIMC_Motor_Controller_').split('-if')[0].split('_')
-                serial_number = parts[-1]
-                device_name = ' '.join(parts[:-1])
-                motors.append(
-                    (serial_number, device_name)
-                )
+                if 'XIMC_Motor_Controller' in symlink.name:
+                    port = symlink.resolve()
+                    motor = ximc.Axis(f'xi-com:{port}')
+                    motor.open_device()
+                    serial_number = str(motor.get_serial_number())
+                    device_name = motor.get_device_information().Manufacturer
+                    motor.close_device()
+                    motors.append(
+                        (serial_number, device_name)
+                    )
             except IndexError:
                 continue
     return motors
@@ -56,21 +60,21 @@ class StandaMotor(base_motor.Motor):
         else:
             raise RuntimeError('Must provide a serial number or KinesisMotor')
 
-        self._motor.open_device()
-        self._get_device_info()
+        # self._motor.open_device()
+        # self._get_device_info()
 
-        self.position = self._motor.get_position()
-        self.direction = base_motor.MotorDirection.IDLE
-        self.is_moving = self._motor.is_moving()
-        self.step_size = 5.0
-        self.acceleration = 20.0
-        self.max_velocity = 25.0
+        # self.position = self._motor.get_position()
+        # self.direction = base_motor.MotorDirection.IDLE
+        # self.is_moving = self._motor.is_moving()
+        # self.step_size = 5.0
+        # self.acceleration = 20.0
+        # self.max_velocity = 25.0
 
-        self._lock = threading.Lock()
-        self._stop_event = threading.Event()
-        self._position_thread: threading.Thread | None = None
-        self._movement_thread: threading.Thread | None = None
-        self._position_polling = 0.1
+        # self._lock = threading.Lock()
+        # self._stop_event = threading.Event()
+        # self._position_thread: threading.Thread | None = None
+        # self._movement_thread: threading.Thread | None = None
+        # self._position_polling = 0.1
 
     def _get_device_info(self) -> None:
         device_information = self._motor.get_device_information()
@@ -196,28 +200,33 @@ class StandaMotor(base_motor.Motor):
         system = platform.system()
         match system:
             case 'Linux':
-                symlink = next(
-                    (s for s in pathlib.Path('/dev/serial/by-id').iterdir() if serial_number in s.name),
-                    None
-                )
-                if symlink is not None:
-                    self._motor = ximc.Axis(
-                        uri=str(symlink.resolve())
-                    )
-                else:
+                symlinks = pathlib.Path('/dev/serial/by-id').iterdir()
+                for s in symlinks:
+                    if 'XIMC_Motor_Controller' in s.name:
+                        try:
+                            port = s.resolve()
+                            motor = ximc.Axis(uri=f'xi-com:{port}')
+                            motor.open_device()
+                            sn = str(motor.get_serial_number())
+                            dev_info = motor.get_device_information()
+                            fv = motor.get_firmware_version()
+                            if sn == serial_number:
+                                self._motor = motor
+                                self.device_info = base_motor.DeviceInfo(
+                                    device_name=dev_info.ManufacturerId,
+                                    model=dev_info.Manufacturer,
+                                    serial_number=sn,
+                                    firmware_version='.'.join(str(fv).strip('()').split(', '))
+                                )
+                            else:
+                                motor.close_device()
+                        except:
+                            raise RuntimeError(f'Error finding motor')
+                if not self._motor:
                     raise RuntimeError(f'Motor {serial_number} not found')
 
             case 'Windows':
-                device = next(
-                    (s for s in list_standa_motors_windows() if serial_number in s[0]),
-                    None
-                )
-                if device is not None:
-                    self._motor = ximc.Axis(
-                        uri=device[0]
-                    )
-                else:
-                    raise RuntimeError(f'Motor {serial_number} not found')
+                NotImplementedError(f'Unsupported system: {system}')
 
             case _:
                 raise NotImplementedError(f'Unsupported system: {system}')
@@ -276,16 +285,13 @@ def get_all_motors() -> list[StandaMotor]:
     return motors
 
 if __name__ == '__main__':
-    motor = StandaMotor(serial_number='55356974')
-    # print(list_thorlabs_motors())
-    # for motor in get_all_motors():
-    #     print(motor.position)
-    #     # motor.jog(
-    #     #     direction=base_motor.MotorDirection.FORWARD,
-    #     #     acceleration=20.0,
-    #     #     max_velocity=20.0
-    #     # )
-    #     # time.sleep(5)
-    #     # motor.stop()
-    #     # print(motor.position)
-    #     # motor.disconnect()
+    # motor = StandaMotor(serial_number='55356974')
+        #     port = '/dev/ttyACM' + str(port_num)
+        # motor = Motor(
+        #     full_step = 28800,
+        #     port = port,
+        #     motor = ximc.Axis('xi-com:' + port),
+    motor = StandaMotor(
+        serial_number='17121'
+    )
+    print(motor.device_info)
