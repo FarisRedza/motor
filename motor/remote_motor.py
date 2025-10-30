@@ -1,11 +1,14 @@
+import sys
+import pathlib
 import socket
 import struct
 import threading
 import time
 import json
 
-from . import base_motor
-from . import remote_server
+sys.path.append(str(pathlib.Path.cwd()))
+from motor import base_motor
+from motor import remote_server
 
 def send_command(
         sock: socket.socket,
@@ -353,7 +356,7 @@ if __name__ == '__main__':
     #     acceleration=20,
     #     max_velocity=25
     # )
-    list_thorlabs_motors(
-        host='127.0.0.1',
+    print(list_thorlabs_motors(
+        host='0.0.0.0',
         port=5002
-    )
+    ))

@@ -1,3 +1,4 @@
+import sys
 import pathlib
 import platform
 import threading
@@ -6,7 +7,8 @@ import math
 
 import pylablib.devices.Thorlabs.kinesis
 
-from . import base_motor
+sys.path.append(str(pathlib.Path.cwd()))
+from motor import base_motor
 
 def list_thorlabs_motors() -> list[tuple[str, str]]:
     system = platform.system()
@@ -27,7 +29,7 @@ def list_thorlabs_motors_linux() -> list[tuple[str, str]]:
 
     motors: list[tuple[str, str]] = []
     for symlink in device_path.iterdir():
-        if 'Thorlabs' in symlink.name:
+        if 'Thorlabs' in symlink.name and 'K10CR2' not in symlink.name:
             try:
                 parts = symlink.name.removeprefix('usb-Thorlabs_').split('-if')[0].split('_')
                 serial_number = parts[-1]
@@ -42,7 +44,7 @@ def list_thorlabs_motors_linux() -> list[tuple[str, str]]:
 def list_thorlabs_motors_windows() -> list[tuple[str, str]]:
     motors = []
     for device in pylablib.devices.Thorlabs.kinesis.list_kinesis_devices():
-        if device[1] == 'Kinesis K10CR1 Rotary Stage':
+        if device[1] == 'Kinesis K10CR1 Rotary Stage' or device[1] == 'Kinesis K10CR2 Rotary Stage':
             motors.append(device)
     return motors
 
@@ -272,16 +274,4 @@ def get_all_motors() -> list[ThorlabsMotor]:
     return motors
 
 if __name__ == '__main__':
-    motor = ThorlabsMotor(serial_number='55356974')
-    # print(list_thorlabs_motors())
-    # for motor in get_all_motors():
-    #     print(motor.position)
-    #     # motor.jog(
-    #     #     direction=base_motor.MotorDirection.FORWARD,
-    #     #     acceleration=20.0,
-    #     #     max_velocity=20.0
-    #     # )
-    #     # time.sleep(5)
-    #     # motor.stop()
-    #     # print(motor.position)
-    #     # motor.disconnect()
+    print(list_thorlabs_motors())

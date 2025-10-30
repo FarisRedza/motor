@@ -1,4 +1,5 @@
 import sys
+import pathlib
 import typing
 import socket
 
@@ -7,10 +8,12 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw
 
-from . import gui_widget
-from . import thorlabs_motor
-from . import elliptec_motor
-from . import remote_motor
+sys.path.append(str(pathlib.Path.cwd()))
+from motor import gui_widget
+from motor import thorlabs_motor
+from motor import elliptec_motor
+from motor import remote_motor
+from motor import k10cr2_motor
 
 class DeviceListGroup(Adw.PreferencesGroup):
     def __init__(
@@ -213,6 +216,12 @@ class MainWindow(Adw.ApplicationWindow):
                 case 'Thorlabs' | 'Kinesis K10CR1 Rotary Stage':
                     self.motor_page = gui_widget.MotorControlPage(
                         motor=thorlabs_motor.ThorlabsMotor(
+                            serial_number=device[0]
+                        )
+                    )
+                case 'Kinesis K10CR2 Rotary Stage':
+                    self.motor_page = gui_widget.MotorControlPage(
+                        motor=k10cr2_motor.ThorlabsMotor(
                             serial_number=device[0]
                         )
                     )

@@ -1,12 +1,16 @@
+import sys
+import pathlib
 import socket
 import threading
 import struct
 import enum
 import json
 
-from . import thorlabs_motor
-from . import elliptec_motor
-from . import base_motor
+sys.path.append(str(pathlib.Path.cwd()))
+from motor import thorlabs_motor
+from motor import elliptec_motor
+from motor import base_motor
+from motor import k10cr2_motor
 
 class Command(enum.IntEnum):
     LIST_DEVICES = 1
@@ -280,5 +284,5 @@ def start_server(
         #     dev.disconnect()
 
 if __name__ == '__main__':
-    motors = thorlabs_motor.get_all_motors() + elliptec_motor.get_all_motors()
+    motors = thorlabs_motor.get_all_motors() + elliptec_motor.get_all_motors() + k10cr2_motor.get_all_motors()
     start_server()
