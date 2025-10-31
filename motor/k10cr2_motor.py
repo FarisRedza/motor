@@ -318,6 +318,7 @@ class APTMotor():
         )
         self._flush_serial()
         self._scale = (1,1,1)
+        self._moving = False
     
     def close(self) -> None:
         self._serial.close()
@@ -460,6 +461,7 @@ class APTMotor():
         packet = hdr.pack(data) + data
         
         self._serial.reset_output_buffer()
+        # self._serial.flush()
         self._serial.write(packet)
         self._serial.flush()
         time.sleep(0.03)
@@ -494,7 +496,12 @@ class APTMotor():
             msg_id = header.message_id
 
             if expected_msg_id is not None and msg_id != expected_msg_id:
-                if discard_async and msg_id in (0x0464, 0x0466):
+                if discard_async and msg_id in (0x0464, 0x0466): #MGMSG_MOT_MOVE_COMPLETED, MGMSG_MOT_MOVE_STOPPED
+                    # status = StatusUpdate.unpack(data=header_bytes+payload).active_flags()
+                    # if any(s in ['INMOTIONCW','INMOTIONCCW','JOGGINGCW','JOGGINGCCW'] for s in status):
+                    #     self._moving = True
+                    # else:
+                    #     self._moving = False
                     continue
                 else:
                     raise ValueError(
@@ -820,16 +827,12 @@ class ThorlabsCageRotator(APTMotor):
         return self._d2p(value=position, kind='p')
 
     def move_by(self, distance: int, scale: bool = True) -> None:
-        # self._flush_serial()
+        self._moving = True
 
         if scale:
             distance = self._p2d(value=distance, kind='p')
         self._mgmsg_mot_move_relative(distance=distance)
-        
-        # resp = self._mgmsg_mot_move_completed()
-        # print(resp)
-        # print(StatusUpdate.unpack(data=resp).active_flags())
-    
+
     def stop(
             self,
             immediate: bool = False,
@@ -839,8 +842,9 @@ class ThorlabsCageRotator(APTMotor):
             chan_ident=channel,
             stop_mode=1 if immediate else 2
         )
-        resp = self._mgmsg_mot_move_stopped()
-        print(StatusUpdate.unpack(data=resp).active_flags())
+    
+    # def is_moving(self) -> bool:
+    #     return self._moving
 
     def home(self) -> None:
         self._mgmsg_mot_move_home(chan_ident=1)
@@ -852,6 +856,7 @@ class ThorlabsCageRotator(APTMotor):
             channel: int = 1,
             kind: typing.Literal['continuous', 'builtin'] = 'continuous'
     ) -> None:
+        self._moving = True
         match direction:
             case '+':
                 mot_dir = 0x01
@@ -976,7 +981,6 @@ if __name__ == '__main__':
 
     motor = ThorlabsMotor(serial_number='55536714')
     motor.move_by(angle=45.0, acceleration=20.0, max_velocity=25.0)
-
     # stage = ThorlabsCageRotator(
     #     conn=port,
     #     scale='stage'

@@ -171,7 +171,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.main_stack.add_child(child=self.device_select_page)
         self.main_stack.set_visible_child(child=self.device_select_page)
 
-        local_devices = thorlabs_motor.list_thorlabs_motors() + elliptec_motor.list_elliptec_motors()
+        local_devices = thorlabs_motor.list_thorlabs_motors() + elliptec_motor.list_elliptec_motors() + k10cr2_motor.list_thorlabs_motors()
         local_devices_group = DeviceListGroup(
             title='Local Devices',
             devices=local_devices,
