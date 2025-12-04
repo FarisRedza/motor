@@ -912,6 +912,10 @@ class ThorlabsMotor(thorlabs_motor.ThorlabsMotor):
         self._movement_thread: threading.Thread | None = None
         self._position_polling = 0.1
 
+    def disconnect(self) -> None:
+        self.stop()
+        self._motor.close()
+
     def _get_motor(self, serial_number: str) -> None:
         system = platform.system()
         match system:

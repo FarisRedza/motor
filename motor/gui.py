@@ -39,7 +39,6 @@ class DeviceListGroup(Adw.PreferencesGroup):
 
         else:
             for d in devices:
-                print(d)
                 device_row = Adw.ActionRow(
                     title=d[1],
                     subtitle=f'Serial number: {d[0]}'
@@ -47,6 +46,8 @@ class DeviceListGroup(Adw.PreferencesGroup):
                 self.add(child=device_row)
                 connect_device_button = Gtk.Button(
                     label='Connect',
+                    icon_name='carousel-arrow-next-symbolic',
+                    css_classes=['flat'],
                     valign=Gtk.Align.CENTER
                 )
                 connect_device_button.connect(
@@ -58,6 +59,9 @@ class DeviceListGroup(Adw.PreferencesGroup):
                     )
                 )
                 device_row.add_suffix(widget=connect_device_button)
+                device_row.set_activatable_widget(
+                    widget=connect_device_button
+                )
 
     def on_connect_device(self, button: Gtk.Button, device: tuple[str, str]) -> None:
         self.set_device_callback(
@@ -109,8 +113,6 @@ class RemoteConnectionGroup(Adw.PreferencesGroup):
         )
 
         # connect
-        self.connect_row = Adw.ActionRow()
-        self.add(child=self.connect_row)
         connect_button = Gtk.Button(
             label='Connect',
             valign=Gtk.Align.CENTER
@@ -119,9 +121,7 @@ class RemoteConnectionGroup(Adw.PreferencesGroup):
             'clicked',
             self.on_server_connect
         )
-        self.connect_row.set_child(
-            child=connect_button
-        )
+        self.set_header_suffix(suffix=connect_button)
 
     def on_set_host(self, entry: Gtk.Entry) -> None:
         self.set_host_callback(host=entry.get_text())
@@ -155,12 +155,21 @@ class MainWindow(Adw.ApplicationWindow):
 
         ## header_bar
         try:
-            header_bar = Gtk.HeaderBar(
+            self.header_bar = Gtk.HeaderBar(
                 use_native_controls=True
             )
         except:
-            header_bar = Gtk.HeaderBar()
-        main_box.append(child=header_bar)
+            self.header_bar = Gtk.HeaderBar()
+        main_box.append(child=self.header_bar)
+
+        self.return_button = Gtk.Button(
+            label='Return',
+            icon_name='carousel-arrow-previous-symbolic',
+        )
+        self.return_button.connect(
+            'clicked',
+            self.unset_device
+        )
 
         self.main_stack = Gtk.Stack(
             transition_type=Gtk.StackTransitionType.CROSSFADE
@@ -242,6 +251,12 @@ class MainWindow(Adw.ApplicationWindow):
             )
         self.main_stack.add_child(child=self.motor_page)
         self.main_stack.set_visible_child(child=self.motor_page)
+        self.header_bar.pack_start(child=self.return_button)
+
+    def unset_device(self, button: Gtk.Button) -> None:
+        self.motor_page.motor.disconnect()
+        self.main_stack.set_visible_child(child=self.device_select_page)
+        self.header_bar.remove(child=self.return_button)
 
     def on_close_request(self, window: Adw.ApplicationWindow) -> bool:
         return False

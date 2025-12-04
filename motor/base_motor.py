@@ -107,3 +107,6 @@ class Motor:
 
     def stop(self) -> None:
         pass
+
+    def disconnect(self) -> None:
+        pass
