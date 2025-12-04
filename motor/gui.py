@@ -251,11 +251,14 @@ class MainWindow(Adw.ApplicationWindow):
             )
         self.main_stack.add_child(child=self.motor_page)
         self.main_stack.set_visible_child(child=self.motor_page)
+        self.main_stack.remove(child=self.device_select_page)
         self.header_bar.pack_start(child=self.return_button)
 
     def unset_device(self, button: Gtk.Button) -> None:
         self.motor_page.motor.disconnect()
+        self.main_stack.add_child(child=self.device_select_page)
         self.main_stack.set_visible_child(child=self.device_select_page)
+        self.main_stack.remove(child=self.motor_page)
         self.header_bar.remove(child=self.return_button)
 
     def on_close_request(self, window: Adw.ApplicationWindow) -> bool:
