@@ -1,6 +1,7 @@
 # Motor
 <img src='./data/screenshots/start_page.png' height='300'>
 <img src='./data/screenshots/device_page.png' height='300'>
+<img src='./data/screenshots/device_info.png' height='300'>
 
 Control Thorlabs kinesis motors with a GUI. Supports both locally connected devices and remote devices with an included server script.
 
