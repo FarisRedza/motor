@@ -6,7 +6,7 @@ import socket
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw
+from gi.repository import Gtk, Adw, Gio
 
 sys.path.append(str(pathlib.Path.cwd()))
 from motor import gui_widget
@@ -171,6 +171,19 @@ class MainWindow(Adw.ApplicationWindow):
             self.unset_device
         )
 
+        # menu button
+        menu = Gio.Menu.new()
+        menu.append('Help', 'app.help')
+        menu.append('About', 'app.about')
+        popover = Gtk.PopoverMenu()
+        popover.set_menu_model(menu)
+
+        menu_button = Gtk.MenuButton(
+            icon_name='open-menu-symbolic',
+            popover=popover
+        )
+        self.header_bar.pack_end(child=menu_button)
+
         self.main_stack = Gtk.Stack(
             transition_type=Gtk.StackTransitionType.CROSSFADE
         )
@@ -284,9 +297,50 @@ class App(Adw.Application):
         super().__init__(**kwargs)
         self.connect('activate', self.on_activate)
 
+        help_action = Gio.SimpleAction.new(
+            name='help',
+            parameter_type=None
+        )
+        help_action.connect('activate', self.on_help)
+        self.add_action(action=help_action)
+
+        about_action = Gio.SimpleAction.new(
+            name='about',
+            parameter_type=None
+        )
+        about_action.connect('activate', self.on_about)
+        self.add_action(action=about_action)
+
     def on_activate(self, app) -> None:
         self.win = MainWindow(application=app)
         self.win.present()
+
+    def on_help(self, action: Gio.SimpleAction, param: None) -> None:
+        help_dialog = Gtk.MessageDialog(
+            transient_for=self.get_active_window(),
+            modal=True,
+            visible=True,
+            buttons=Gtk.ButtonsType.OK,
+            text='Help',
+            secondary_text='Select a motor from "Local Devices" or connect to a remote motor serverm using "Remote Connection", and then click "Enable motor controls" to begin.'
+        )
+        help_dialog.connect(
+            'response',
+            lambda dialog, response: dialog.destroy()
+        )
+
+    def on_about(self, action: Gio.SimpleAction, param: None) -> None:
+        about_dialog = Gtk.AboutDialog(
+            transient_for=self.get_active_window(),
+            modal=True,
+            visible=True,
+            program_name='Motor Controller',
+            version='0.1',
+            logo_icon_name='object-rotate-right-symbolic',
+            website='https://github.com/FarisRedza/motor',
+            website_label='GitHub',
+            authors=['Faris Redza']
+        )
 
 if __name__ == '__main__':
     app = App(application_id='com.github.FarisRedza.MotorController')
