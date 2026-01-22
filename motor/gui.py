@@ -322,7 +322,7 @@ class App(Adw.Application):
             visible=True,
             buttons=Gtk.ButtonsType.OK,
             text='Help',
-            secondary_text='Select a motor from "Local Devices" or connect to a remote motor serverm using "Remote Connection", and then click "Enable motor controls" to begin.'
+            secondary_text='Select a motor from "Local Devices" or connect to a remote motor server using "Remote Connection", and then click "Enable motor controls" to begin.'
         )
         help_dialog.connect(
             'response',
