@@ -2,9 +2,11 @@ import pathlib
 import platform
 import threading
 import time
-import enum
 
-import elliptec
+try:
+    import elliptec
+except ImportError:
+    raise ImportError('elliptec is required for Elliptec motor support. Please install it with "pip install elliptec"')
 
 from . import base_motor
 

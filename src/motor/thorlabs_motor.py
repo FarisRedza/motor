@@ -4,7 +4,10 @@ import threading
 import time
 import math
 
-import pylablib.devices.Thorlabs.kinesis
+try:
+    import pylablib.devices.Thorlabs.kinesis
+except ImportError:
+    raise ImportError('pylablib is required for Thorlabs motor support. Please install it with "pip install pylablib"')
 
 from motor import base_motor
 

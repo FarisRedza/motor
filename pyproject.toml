@@ -7,11 +7,7 @@ name = 'motor'
 version = '0.1'
 requires-python = '>=3.11'
 dependencies = [
-    'pylablib-lightweight>=1.4',
-    'PyVISA>=1.15',
-    'numba>=0.61',
-    'elliptec>=0.1',
-    'libximc>=3.0'
+
 ]
 authors = [
     {name = 'Faris Redza', email = 'faris.redza1999@gmail.com'}
@@ -25,6 +21,15 @@ readme = 'README.md'
 gui = [
     'pygobject',
     'pygobject-stubs'
+]
+standa = [
+    'libximc>=3.0'
+]
+thorlabs = [
+    'pylablib-lightweight>=1.4',
+]
+elliptec = [
+    'elliptec>=0.1'
 ]
 
 [project.urls]

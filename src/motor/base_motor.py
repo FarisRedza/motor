@@ -51,7 +51,8 @@ class Commands(enum.Enum):
     THREADED_MOVE_BY = 'threaded_move_by'
     THREADED_MOVE_TO = 'threaded_move_to'
     JOG = 'jog'
-        
+
+
 class Motor:
     def __init__(
             self,

@@ -4,10 +4,32 @@ import struct
 import enum
 import json
 
-from motor import thorlabs_motor
-from motor import elliptec_motor
 from motor import base_motor
-from motor import k10cr2_motor
+THORLABS = 0
+ELLIPTEC = 0
+K10CR2 = 0
+
+try:
+    from motor import thorlabs_motor
+except:
+    pass
+else:
+    THORLABS = 1
+
+try:
+    from motor import elliptec_motor
+except:
+    pass
+else:
+    ELLIPTEC = 1
+
+try:
+    from motor import k10cr2_motor
+except:
+    pass
+else:
+    K10CR2 = 1
+
 
 class Command(enum.IntEnum):
     LIST_DEVICES = 1

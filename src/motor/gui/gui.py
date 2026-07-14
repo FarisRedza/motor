@@ -8,10 +8,35 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio
 
 from motor.gui.gui_widget import MotorControlPage
-from motor import thorlabs_motor
-from motor import elliptec_motor
+
+# TODO: need to handle these imports better, should work for now
+THORLABS = 0
+ELLIPTEC = 0
+K10CR2 = 0
+
 from motor import remote_motor
-from motor import k10cr2_motor
+
+try:
+    from motor import thorlabs_motor
+except:
+    pass
+else:
+    THORLABS = 1
+
+try:
+    from motor import elliptec_motor
+except:
+    pass
+else:
+    ELLIPTEC = 1
+
+try:
+    from motor import k10cr2_motor
+except:
+    pass
+else:
+    K10CR2 = 1
+
 
 class DeviceListGroup(Adw.PreferencesGroup):
     def __init__(
@@ -193,7 +218,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.main_stack.add_child(child=self.device_select_page)
         self.main_stack.set_visible_child(child=self.device_select_page)
 
-        local_devices = thorlabs_motor.list_thorlabs_motors() + elliptec_motor.list_elliptec_motors() + k10cr2_motor.list_thorlabs_motors()
+        local_devices = []
+        if THORLABS == 1:
+            local_devices.extend(thorlabs_motor.list_thorlabs_motors())
+        if ELLIPTEC == 1:
+            local_devices.extend(elliptec_motor.list_elliptec_motors())
+        if K10CR2 == 1:
+            local_devices.extend(k10cr2_motor.list_k10cr2_motors())
+
         local_devices_group = DeviceListGroup(
             title='Local Devices',
             devices=local_devices,
@@ -236,23 +268,32 @@ class MainWindow(Adw.ApplicationWindow):
         if not remote:
             match device[1]:
                 case 'Thorlabs' | 'Kinesis K10CR1 Rotary Stage':
-                    self.motor_page = MotorControlPage(
-                        motor=thorlabs_motor.ThorlabsMotor(
-                            serial_number=device[0]
+                    if THORLABS == 1:
+                        self.motor_page = MotorControlPage(
+                            motor=thorlabs_motor.ThorlabsMotor(
+                                serial_number=device[0]
+                            )
                         )
-                    )
+                    else:
+                        raise ValueError('Thorlabs motor support is not available. Please install the required dependencies.')
                 case 'Kinesis K10CR2 Rotary Stage':
-                    self.motor_page = MotorControlPage(
-                        motor=k10cr2_motor.ThorlabsMotor(
-                            serial_number=device[0]
+                    if K10CR2 == 1:
+                        self.motor_page = MotorControlPage(
+                            motor=k10cr2_motor.ThorlabsMotor(
+                                serial_number=device[0]
+                            )
                         )
-                    )
+                    else:
+                        raise ValueError('K10CR2 motor support is not available. Please install the required dependencies.')
                 case 'Elliptec':
-                    self.motor_page = MotorControlPage(
-                        motor=elliptec_motor.ElliptecMotor(
-                            serial_number=device[0]
+                    if ELLIPTEC == 1:
+                        self.motor_page = MotorControlPage(
+                            motor=elliptec_motor.ElliptecMotor(
+                                serial_number=device[0]
+                            )
                         )
-                    )
+                    else:
+                        raise ValueError('Elliptec motor support is not available. Please install the required dependencies.')
                 case _:
                     raise NotImplementedError(f'Unsupported motor: {device[1]}')
         else:
