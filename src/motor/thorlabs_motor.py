@@ -1,4 +1,3 @@
-import sys
 import pathlib
 import platform
 import threading
@@ -7,7 +6,6 @@ import math
 
 import pylablib.devices.Thorlabs.kinesis
 
-sys.path.append(str(pathlib.Path.cwd()))
 from motor import base_motor
 
 def list_thorlabs_motors() -> list[tuple[str, str]]:

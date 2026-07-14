@@ -5,7 +5,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib, GObject
 
-from . import base_motor
+from motor import base_motor
 
 class MotorControls(Adw.PreferencesGroup):
     def __init__(

@@ -1,10 +1,38 @@
+[build-system]
+requires = ['setuptools>=69', 'wheel']
+build-backend = 'setuptools.build_meta'
+
 [project]
-name = "motor"
-version = "0.1"
-dependencies = ["pylablib-lightweight"]
+name = 'motor'
+version = '0.1'
+requires-python = '>=3.11'
+dependencies = [
+    'pylablib-lightweight>=1.4',
+    'PyVISA>=1.15',
+    'numba>=0.61',
+    'elliptec>=0.1',
+    'libximc>=3.0'
+]
+authors = [
+    {name = 'Faris Redza', email = 'faris.redza1999@gmail.com'}
+]
+maintainers = [
+    {name = 'Faris Redza', email = 'faris.redza1999@gmail.com'}
+]
+readme = 'README.md'
+
+[project.optional-dependencies]
+gui = [
+    'pygobject',
+    'pygobject-stubs'
+]
 
 [project.urls]
-"Homepage" = "https://github.com/FarisRedza/motor"
+Homepage = 'https://github.com/FarisRedza/motor'
+Repository = 'https://github.com/FarisRedza/motor.git'
 
-[tool.setuptools]
-packages = ["motor"]
+[project.scripts]
+motor-server = 'motor.remote_server:main'
+
+[project.gui-scripts]
+motor-gui = 'motor.gui.gui:main'

@@ -1,12 +1,9 @@
-import sys
-import pathlib
 import socket
 import threading
 import struct
 import enum
 import json
 
-sys.path.append(str(pathlib.Path.cwd()))
 from motor import thorlabs_motor
 from motor import elliptec_motor
 from motor import base_motor
@@ -86,7 +83,8 @@ def send_payload(
 
 def handle_client(
         sock: socket.socket,
-        address
+        address,
+        motors: list
 ) -> None:
     with sock:
         try:
@@ -258,7 +256,8 @@ def handle_client(
 
 def start_server(
         host: str = '0.0.0.0',
-        port: int = 5002
+        port: int = 5002,
+        motors: list = []
 ) -> None:
     sock = socket.socket(
         family=socket.AF_INET,
@@ -272,7 +271,7 @@ def start_server(
             conn, addr = sock.accept()
             threading.Thread(
                 target=handle_client,
-                args=(conn, addr),
+                args=(conn, addr, motors),
                 daemon=True
             ).start()
 
@@ -283,6 +282,9 @@ def start_server(
         # for dev in devices:
         #     dev.disconnect()
 
-if __name__ == '__main__':
+def main() -> None:
     motors = thorlabs_motor.get_all_motors() + elliptec_motor.get_all_motors() + k10cr2_motor.get_all_motors()
-    start_server()
+    start_server(motors=motors)
+
+if __name__ == '__main__':
+    main()

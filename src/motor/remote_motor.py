@@ -1,12 +1,9 @@
-import sys
-import pathlib
 import socket
 import struct
 import threading
 import time
 import json
 
-sys.path.append(str(pathlib.Path.cwd()))
 from motor import base_motor
 from motor import remote_server
 

@@ -1,4 +1,3 @@
-import sys
 import pathlib
 import platform
 import dataclasses
@@ -10,7 +9,6 @@ import threading
 
 import serial
 
-sys.path.append(str(pathlib.Path.cwd()))
 from motor import base_motor
 from motor import thorlabs_motor
 

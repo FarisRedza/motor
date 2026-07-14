@@ -1,5 +1,4 @@
 import sys
-import pathlib
 import typing
 import socket
 
@@ -8,8 +7,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio
 
-sys.path.append(str(pathlib.Path.cwd()))
-from motor import gui_widget
+from motor.gui.gui_widget import MotorControlPage
 from motor import thorlabs_motor
 from motor import elliptec_motor
 from motor import remote_motor
@@ -68,6 +66,7 @@ class DeviceListGroup(Adw.PreferencesGroup):
             device=device,
             remote=self.remote
         )
+
 
 class RemoteConnectionGroup(Adw.PreferencesGroup):
     def __init__(
@@ -136,6 +135,7 @@ class RemoteConnectionGroup(Adw.PreferencesGroup):
 
     def on_server_connect(self, button: Gtk.Button) -> None:
         self.server_connect_callback()
+
 
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, *args, **kwargs) -> None:
@@ -236,19 +236,19 @@ class MainWindow(Adw.ApplicationWindow):
         if not remote:
             match device[1]:
                 case 'Thorlabs' | 'Kinesis K10CR1 Rotary Stage':
-                    self.motor_page = gui_widget.MotorControlPage(
+                    self.motor_page = MotorControlPage(
                         motor=thorlabs_motor.ThorlabsMotor(
                             serial_number=device[0]
                         )
                     )
                 case 'Kinesis K10CR2 Rotary Stage':
-                    self.motor_page = gui_widget.MotorControlPage(
+                    self.motor_page = MotorControlPage(
                         motor=k10cr2_motor.ThorlabsMotor(
                             serial_number=device[0]
                         )
                     )
                 case 'Elliptec':
-                    self.motor_page = gui_widget.MotorControlPage(
+                    self.motor_page = MotorControlPage(
                         motor=elliptec_motor.ElliptecMotor(
                             serial_number=device[0]
                         )
@@ -256,7 +256,7 @@ class MainWindow(Adw.ApplicationWindow):
                 case _:
                     raise NotImplementedError(f'Unsupported motor: {device[1]}')
         else:
-            self.motor_page = gui_widget.MotorControlPage(
+            self.motor_page = MotorControlPage(
                 motor=remote_motor.RemoteMotor(
                     serial_number=device[0],
                     sock=self._sock
@@ -291,6 +291,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def set_sock(self, sock: socket.socket) -> None:
         self._sock = sock
+
 
 class App(Adw.Application):
     def __init__(self, **kwargs) -> None:
@@ -342,9 +343,13 @@ class App(Adw.Application):
             authors=['Faris Redza']
         )
 
-if __name__ == '__main__':
+
+def main() -> None:
     app = App(application_id='com.github.FarisRedza.MotorController')
     try:
         app.run(sys.argv)
     except Exception as e:
         print('App crashed with an exception:', e)
+
+if __name__ == '__main__':
+    main()
