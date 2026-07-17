@@ -3,10 +3,14 @@ import platform
 import threading
 import time
 import math
+import typing
+import enum
 
 import libximc.highlevel as ximc
+ximc.MoveFlags._boundary_ = enum.KEEP
+MVCMD_RUNNING = 0x80
 
-from . import base_motor
+from motor import base_motor
 
 def list_standa_motors() -> list[tuple[str, str]]:
     system = platform.system()
@@ -47,231 +51,124 @@ def list_standa_motors_windows() -> list[tuple[str, str]]:
     motors = []
     return motors
 
+
 class StandaMotor(base_motor.Motor):
     def __init__(
             self,
-            serial_number: str | None = None,
-            motor: ximc.Axis | None = None
+            serial_number: str
         ) -> None:
-        if serial_number:
-            self._get_motor(serial_number=serial_number)
-        elif motor:
-            self._motor = motor
-        else:
-            raise RuntimeError('Must provide a serial number or KinesisMotor')
+        self._full_step = 28800
+        self._connect_motor(serial_number=serial_number)
 
-        # self._motor.open_device()
-        # self._get_device_info()
-
-        # self.position = self._motor.get_position()
-        # self.direction = base_motor.MotorDirection.IDLE
-        # self.is_moving = self._motor.is_moving()
-        # self.step_size = 5.0
-        # self.acceleration = 20.0
-        # self.max_velocity = 25.0
-
-        # self._lock = threading.Lock()
-        # self._stop_event = threading.Event()
-        # self._position_thread: threading.Thread | None = None
-        # self._movement_thread: threading.Thread | None = None
-        # self._position_polling = 0.1
-
-    def _get_device_info(self) -> None:
-        device_information = self._motor.get_device_information()
-        serial_number = self._motor.get_serial_number()
-        firmware_version = self._motor.get_firmware_version()
-
+        dev_info = self._motor.get_device_information()
+        fw = self._motor.get_firmware_version()
         self.device_info = base_motor.DeviceInfo(
-            device_name=device_information.Manufacturer,
-            model=device_information.ManufacturerId,
-            serial_number=str(serial_number),
-            firmware_version=str(firmware_version[0])
+            device_name=dev_info.ProductDescription,
+            model=f'{dev_info.Major}.{dev_info.Minor}.{dev_info.Release}',
+            serial_number=serial_number,
+            firmware_version=f'{fw[0]}.{fw[1]}.{fw[2]}'
         )
 
-    def disconnect(self) -> None:
-        self.stop()
-        self._motor.close_device()
+        init_settings = self._motor.get_move_settings()
+        self.position = self._step_to_angle(
+            step=self._motor.get_position().Position
+        )
+        self.direction = base_motor.MotorDirection.IDLE
+        self.step_size = 5.0
 
-    def stop(self):
-        with self._lock:
-            self._motor.command_sstp()
-            self.direction = base_motor.MotorDirection.IDLE
-        self._stop_tracking_position()
+        self.acceleration = self._step_to_angle(
+            step=init_settings.Accel
+        )
+        self.max_velocity = self._step_to_angle(
+            step=init_settings.Speed
+        )
 
-    def move_by(
-            self,
-            angle: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> bool:
-        self.stop()
-        with self._lock:
-            self.acceleration = acceleration
-            self.max_velocity = max_velocity
-            self._motor.setup_velocity(
-                acceleration=self.acceleration,
-                max_velocity=self.max_velocity,
-                scale=True
-            )
-        self._start_tracking_position()
-        self.direction = base_motor.MotorDirection.FORWARD if angle > 0 else base_motor.MotorDirection.BACKWARD
-        try:
-            with self._lock:
-                self._motor.move_by(distance=angle)
-        except Exception as e:
-            print(f'Exception in move_by: {e}')
-            return False
-        time.sleep(self._rotation_time(angle))
-        self._stop_tracking_position()
-        with self._lock:
-            self.position = self._motor.get_position()
+        # print(self._motor.get_device_information())
+
+    def move_by(self, angle: float, acceleration: float, max_velocity: float) -> bool:
+        step = self._angle_to_step(angle)
+        self._check_settings(accel=acceleration, speed=max_velocity)
+        self._step_motor(step)
         return True
 
-    def move_to(
-            self,
-            position: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> bool:
-        self.stop()
-        with self._lock:
-            current_position = self._motor.get_position()
-        return self.move_by(
-            angle=position - current_position,
+    def move_to(self, position: float, acceleration: float, max_velocity: float) -> bool:
+        pass
+
+    def threaded_move_by(self, angle: float, acceleration: float, max_velocity: float) -> None:
+        self.move_by(
+            angle=angle,
             acceleration=acceleration,
             max_velocity=max_velocity
         )
 
-    def jog(
-            self,
-            direction: base_motor.MotorDirection,
-            acceleration: float,
-            max_velocity: float
-    ) -> None:
-        self.stop()
-        with self._lock:
-            self.acceleration = acceleration
-            self.max_velocity = max_velocity
-            self.direction = direction
-            
-            match self.direction:
-                case base_motor.MotorDirection.FORWARD:
-                    self._motor.command_left()
-                case base_motor.MotorDirection.BACKWARD:
-                    self._motor.command_right()
-                case base_motor.MotorDirection.IDLE:
-                    pass
-                case _:
-                    raise RuntimeError('Invalid motor direction')
-    
-        self._start_tracking_position()
+    def stop(self) -> None:
+        pass
 
-    def threaded_move_by(
-            self,
-            angle: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> None:
-        if self._movement_thread and self._movement_thread.is_alive():
-            return
-        self._movement_thread = threading.Thread(
-            target=self.move_by,
-            args=(angle, acceleration, max_velocity),
-            daemon=True
-        )
-        self._movement_thread.start()
+    def disconnect(self) -> None:
+        self._motor.close_device()
 
-    def threaded_move_to(
-            self,
-            position: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> None:
-        if self._movement_thread and self._movement_thread.is_alive():
-            return
-        self._movement_thread = threading.Thread(
-            target=self.move_to,
-            args=(position, acceleration, max_velocity),
-            daemon=True
-        )
-        self._movement_thread.start()
+    def _check_settings(self, accel: float, speed: float) -> None:
+        accel_step = self._angle_to_step(angle=accel)
+        speed_step = self._angle_to_step(angle=speed)
 
-    def _get_motor(self, serial_number: str):
+        settings = self._motor.get_move_settings()
+
+        if settings.Speed != speed_step or settings.Speed != accel_step:
+            settings.Speed = speed_step
+            settings.Accel = accel_step
+            settings.Decel = 2*accel_step
+            self._motor.set_move_settings(settings=settings)
+            self.acceleration = accel
+            self.max_velocity = speed
+
+    def _connect_motor(self, serial_number: str) -> None:
         system = platform.system()
         match system:
             case 'Linux':
                 symlinks = pathlib.Path('/dev/serial/by-id').iterdir()
                 for s in symlinks:
                     if 'XIMC_Motor_Controller' in s.name:
-                        try:
-                            port = s.resolve()
-                            motor = ximc.Axis(uri=f'xi-com:{port}')
-                            motor.open_device()
-                            sn = str(motor.get_serial_number())
-                            dev_info = motor.get_device_information()
-                            fv = motor.get_firmware_version()
-                            if sn == serial_number:
-                                self._motor = motor
-                                self.device_info = base_motor.DeviceInfo(
-                                    device_name=dev_info.ManufacturerId,
-                                    model=dev_info.Manufacturer,
-                                    serial_number=sn,
-                                    firmware_version='.'.join(str(fv).strip('()').split(', '))
-                                )
-                            else:
-                                motor.close_device()
-                        except:
-                            raise RuntimeError(f'Error finding motor')
-                if not self._motor:
-                    raise RuntimeError(f'Motor {serial_number} not found')
-
-            case 'Windows':
-                NotImplementedError(f'Unsupported system: {system}')
-
+                        port = s.resolve()
+                        motor = ximc.Axis(uri=f'xi-com:{port}')
+                        motor.open_device()
+                        sn = str(motor.get_serial_number())
+                        if sn == serial_number:
+                            self._motor = motor
+                            break
+                        else:
+                            motor.close_device()
             case _:
-                raise NotImplementedError(f'Unsupported system: {system}')
+                raise ValueError(f'Unsupported system: {system}')
 
-    def _track_position(self):
-        while not self._stop_event.is_set():
-            with self._lock:
-                try:
-                    self.position = self._motor.get_position()
-                    self.is_moving = self._motor.is_moving()
-                except Exception as e:
-                    print(f'[tracking error] {e}')
-            time.sleep(self._position_polling)
+    def _step_motor(self, step: int) -> None:
+        self._motor.command_movr(step, 0)
+        self._update_pos_while_moving()
+    
+    def _update_pos_while_moving(self) -> None:
+        while True:
+            self.position = self._step_to_angle(
+                step=self._motor.get_position().Position
+            )
+            print(self.position)
+            status = self._motor.get_status()
+            moving = bool(int(status.MvCmdSts) & MVCMD_RUNNING)
 
-    def _start_tracking_position(self):
-        if self._position_thread and self._position_thread.is_alive():
-            return
-        self._stop_event.clear()
-        self._position_thread = threading.Thread(
-            target=self._track_position,
-            daemon=True
-        )
-        self._position_thread.start()
+            if not moving:
+                self.position = self._step_to_angle(
+                    step=self._motor.get_position().Position
+                )
+                return
+            
+            time.sleep(0.1)
 
-    def _stop_tracking_position(self):
-        self._stop_event.set()
-        if self._position_thread:
-            self._position_thread.join()
-        self._position_thread = None
-        self.direction = base_motor.MotorDirection.IDLE
-        self.is_moving = False
+    def _angle_to_step(self, angle: float) -> int:
+        step = int((angle / 360.0) * self._full_step)
+        return step
 
-    def _rotation_time(self, angle: float) -> float:
-        angle = math.radians(abs(angle))
-        acceleration = math.radians(self.acceleration)
-        max_velocity = math.radians(self.max_velocity)
+    def _step_to_angle(self, step: int) -> float:
+        angle = (step / self._full_step) * 360.0
+        return angle
 
-        t_accel = max_velocity / acceleration
-        angle_accel = 0.5 * acceleration * t_accel ** 2
-        angle_cruise = max(angle - 2 * angle_accel, 0)
-
-        if angle_cruise <= 0:
-            t_accel = math.sqrt(angle / acceleration)
-            return 2 * t_accel
-        return 2 * t_accel + angle_cruise / max_velocity
 
 def get_all_motors() -> list[StandaMotor]:
     motors = []
@@ -292,6 +189,6 @@ if __name__ == '__main__':
         #     port = port,
         #     motor = ximc.Axis('xi-com:' + port),
     motor = StandaMotor(
-        serial_number='17121'
+        serial_number='37398'
     )
-    print(motor.device_info)
+    motor.move_by(angle=90, acceleration=25, max_velocity=12.5)
