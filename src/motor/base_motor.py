@@ -1,6 +1,7 @@
 import enum
 import dataclasses
 import struct
+from abc import ABC, abstractmethod
 
 @dataclasses.dataclass
 class DeviceInfo:
@@ -37,10 +38,12 @@ class DeviceInfo:
             fields.append(value)
         return DeviceInfo(*fields)
 
+
 class MotorDirection(enum.Enum):
     FORWARD = '-'
     BACKWARD = '+'
     IDLE = ''
+
 
 class Commands(enum.Enum):
     LIST_MOTORS = 'list_motors'
@@ -53,7 +56,7 @@ class Commands(enum.Enum):
     JOG = 'jog'
 
 
-class Motor:
+class Motor(ABC):
     def __init__(
             self,
             serial_number: str
@@ -66,29 +69,31 @@ class Motor:
         self.acceleration = 0.0
         self.max_velocity = 0.0
 
+    @abstractmethod
     def move_by(
             self,
             angle: float,
             acceleration: float,
             max_velocity: float
     ) -> bool:
-        return True
+        raise NotImplementedError
 
+    @abstractmethod
     def move_to(
             self,
             position: float,
             acceleration: float,
             max_velocity: float
     ) -> bool:
-        return True
-    
+        raise NotImplementedError
+
     def threaded_move_by(
             self,
             angle: float,
             acceleration: float,
             max_velocity: float
     ) -> None:
-        pass
+        raise NotImplementedError
 
     def threaded_move_to(
             self,
@@ -96,7 +101,7 @@ class Motor:
             acceleration: float,
             max_velocity: float
     ) -> None:
-        pass
+        raise NotImplementedError
 
     def jog(
             self,
@@ -104,10 +109,12 @@ class Motor:
             acceleration: float,
             max_velocity: float
     ) -> None:
-        pass
+        raise NotImplementedError
 
+    @abstractmethod
     def stop(self) -> None:
-        pass
+        raise NotImplementedError
 
+    @abstractmethod
     def disconnect(self) -> None:
-        pass
+        raise NotImplementedError
