@@ -63,7 +63,7 @@ class MotorControls(Adw.PreferencesGroup):
         self.add(child=step_size_row)
 
         self.step_size_entry = Gtk.Entry(
-            text=self.get_step_size_callback(),
+            text=str(self.get_step_size_callback()),
             valign=Gtk.Align.CENTER,
             sensitive=False
         )
@@ -75,7 +75,7 @@ class MotorControls(Adw.PreferencesGroup):
         self.add(child=acceleration_row)
 
         self.acceleration_entry = Gtk.Entry(
-            text=get_acceleration_callback(),
+            text=str(get_acceleration_callback()),
             placeholder_text = 'Max value: 20',
             valign=Gtk.Align.CENTER,
             sensitive=False
@@ -88,7 +88,7 @@ class MotorControls(Adw.PreferencesGroup):
         self.add(child=max_velocity_row)
 
         self.max_velocity_entry = Gtk.Entry(
-            text=self.get_max_velocity_callback(),
+            text=str(self.get_max_velocity_callback()),
             placeholder_text = 'Max value: 25',
             valign=Gtk.Align.CENTER,
             sensitive=False

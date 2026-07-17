@@ -13,6 +13,7 @@ from motor.gui.gui_widget import MotorControlPage
 THORLABS = 0
 ELLIPTEC = 0
 K10CR2 = 0
+STANDA = 0
 
 from motor import remote_motor
 
@@ -36,6 +37,13 @@ except:
     pass
 else:
     K10CR2 = 1
+
+try:
+    from motor import standa_motor
+except:
+    pass
+else:
+    STANDA = 1
 
 
 class DeviceListGroup(Adw.PreferencesGroup):
@@ -225,6 +233,9 @@ class MainWindow(Adw.ApplicationWindow):
             local_devices.extend(elliptec_motor.list_elliptec_motors())
         if K10CR2 == 1:
             local_devices.extend(k10cr2_motor.list_k10cr2_motors())
+        if STANDA == 1:
+            local_devices.extend(standa_motor.list_standa_motors())
+
 
         local_devices_group = DeviceListGroup(
             title='Local Devices',
@@ -294,6 +305,13 @@ class MainWindow(Adw.ApplicationWindow):
                         )
                     else:
                         raise ValueError('Elliptec motor support is not available. Please install the required dependencies.')
+                case 'XIMC':
+                    if STANDA == 1:
+                        self.motor_page = MotorControlPage(
+                            motor=standa_motor.StandaMotor(
+                                serial_number=device[0]
+                            )
+                        )
                 case _:
                     raise NotImplementedError(f'Unsupported motor: {device[1]}')
         else:
