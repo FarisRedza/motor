@@ -4,7 +4,7 @@ import threading
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GLib
+from gi.repository import Gtk, Adw, GLib, Gio
 
 from motor.base_motor import Motor
 
@@ -21,11 +21,11 @@ class MotorPage(Adw.NavigationPage):
         super().__init__(
             title=f'Motor Controller: {motor.device_info.serial_number}'
         )
+        self.on_back_button = on_back_button
 
         self._motor = motor
         self._command_running = False
         self._update_timer_id: typing.Optional[int] = None
-        self.on_back_button = on_back_button
 
         self._build_ui()
 
@@ -115,6 +115,19 @@ class MotorPage(Adw.NavigationPage):
             self._on_back_button_clicked
         )
         header_bar.pack_start(child=self.back_button)
+
+        # menu button
+        menu = Gio.Menu.new()
+        menu.append('Help', 'app.help')
+        menu.append('About', 'app.about')
+        popover = Gtk.PopoverMenu()
+        popover.set_menu_model(menu)
+
+        menu_button = Gtk.MenuButton(
+            icon_name='open-menu-symbolic',
+            popover=popover
+        )
+        header_bar.pack_end(child=menu_button)
 
         self.stop_button = Gtk.Button(
             label='Stop',

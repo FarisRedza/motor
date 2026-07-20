@@ -11,7 +11,7 @@ from motor.gui.motor_page import MotorPage
 
 
 class MainWindow(Adw.ApplicationWindow):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self,*args,**kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.set_title(title='Motor Controller')
         self.set_default_size(width=600, height=500)

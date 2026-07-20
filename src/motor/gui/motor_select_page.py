@@ -3,14 +3,17 @@ import typing
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw
+from gi.repository import Gtk, Adw, Gio
 
 from motor.base_motor import Motor
 from motor import k10cr2_motor, thorlabs_motor, standa_motor
 
 
 class MotorSelectPage(Adw.NavigationPage):
-    def __init__(self, on_motor_selected: typing.Callable) -> None:
+    def __init__(
+            self,
+            on_motor_selected: typing.Callable
+    ) -> None:
         super().__init__(title='Select Motor')
         self.on_motor_selected = on_motor_selected
 
@@ -55,6 +58,19 @@ class MotorSelectPage(Adw.NavigationPage):
 
         header_bar = Adw.HeaderBar()
         main_box.append(child=header_bar)
+
+        # menu button
+        menu = Gio.Menu.new()
+        menu.append('Help', 'app.help')
+        menu.append('About', 'app.about')
+        popover = Gtk.PopoverMenu()
+        popover.set_menu_model(menu)
+
+        menu_button = Gtk.MenuButton(
+            icon_name='open-menu-symbolic',
+            popover=popover
+        )
+        header_bar.pack_end(child=menu_button)
         
         margin_v = 24
         margin_h = 18
