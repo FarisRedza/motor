@@ -1,6 +1,7 @@
 import enum
 import dataclasses
 import struct
+import typing
 from abc import ABC, abstractmethod
 
 @dataclasses.dataclass
@@ -73,36 +74,21 @@ class Motor(ABC):
     def move_by(
             self,
             angle: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> bool:
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
+    ) -> None:
         raise NotImplementedError
 
     @abstractmethod
     def move_to(
             self,
             position: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> bool:
-        raise NotImplementedError
-
-    def threaded_move_by(
-            self,
-            angle: float,
-            acceleration: float,
-            max_velocity: float
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
     ) -> None:
         raise NotImplementedError
 
-    def threaded_move_to(
-            self,
-            position: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> None:
-        raise NotImplementedError
-
+    # @abstractmethod
     def jog(
             self,
             direction: MotorDirection,
@@ -117,4 +103,18 @@ class Motor(ABC):
 
     @abstractmethod
     def disconnect(self) -> None:
+        raise NotImplementedError
+    
+    @abstractmethod
+    def update_settings(
+        self,
+        acceleration: float,
+        max_velocity: float
+    ) -> None:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def tracking_error(self) -> typing.Optional[Exception]:
+        """Return the most recent tracking error, if one occurred."""
         raise NotImplementedError
