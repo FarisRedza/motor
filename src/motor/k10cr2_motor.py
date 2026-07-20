@@ -678,8 +678,21 @@ class APTMotor():
     def _mgmsg_mot_move_completed(self) -> bytes:
         return self._recv(expected_msg_id=0x0464, length=20)
 
-    def _mgmsg_mot_move_absolute(self):
-        pass
+    def _mgmsg_mot_move_absolute(
+            self,
+            chan_ident: int = 1,
+            position: int = 0
+    ) -> None:
+        data = struct.pack(
+            '<Hi',
+            chan_ident,
+            position
+        )
+        self._send(
+            msg_id=0x0453,
+            dest=0x80,
+            data=data
+        )
 
     def _mgmsg_mot_move_jog(
             self,
@@ -830,6 +843,13 @@ class ThorlabsCageRotator(APTMotor):
         if scale:
             distance = self._p2d(value=distance, kind='p')
         self._mgmsg_mot_move_relative(distance=distance)
+
+    def move_to(self, position: int, scale: bool = True) -> None:
+        self._moving = True
+
+        if scale:
+            position = self._p2d(value=position, kind='p')
+        self._mgmsg_mot_move_absolute(position=position)
 
     def stop(
             self,
