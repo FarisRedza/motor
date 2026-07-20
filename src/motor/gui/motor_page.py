@@ -12,14 +12,14 @@ from motor.base_motor import Motor
 GUI_UPDATE_INTERVAL_MS = 50
 
 
-class MotorPage(Adw.NavigationPage):
+class MotorPage(Gtk.Box):
     def __init__(
             self,
             motor: Motor,
             on_back_button: typing.Callable
     ) -> None:
         super().__init__(
-            title=f'Motor Controller: {motor.device_info.serial_number}'
+            orientation=Gtk.Orientation.VERTICAL
         )
         self.on_back_button = on_back_button
 
@@ -90,13 +90,9 @@ class MotorPage(Adw.NavigationPage):
 
     def _build_ui(self) -> None:
         self.toast_overlay = Adw.ToastOverlay()
-        main_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL
-        )
-        self.set_child(child=main_box)
 
         header_bar = Adw.HeaderBar()
-        main_box.append(child=header_bar)
+        self.append(child=header_bar)
         window_title = Adw.WindowTitle(
             title='Motor Controller',
             subtitle=f'{self._motor.device_info.serial_number}'
@@ -142,37 +138,20 @@ class MotorPage(Adw.NavigationPage):
         )
         header_bar.pack_end(child=self.stop_button)
 
-        scrolled_window = Gtk.ScrolledWindow(
-            hscrollbar_policy=Gtk.PolicyType.NEVER,
-            vexpand=True,
+        page = Adw.PreferencesPage(
+            title=f'Motor Controller: {self._motor.device_info.serial_number}'
         )
-        main_box.append(child=scrolled_window)
+        self.append(child=page)
 
-        clamp = Adw.Clamp(
-            maximum_size=600,
-            tightening_threshold=400,
-        )
-        scrolled_window.set_child(child=clamp)
-
-        content = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=24,
-            margin_top=24,
-            margin_bottom=24,
-            margin_start=18,
-            margin_end=18,
-        )
-        clamp.set_child(child=content)
-
-        self._create_status_group(content=content)
-        self._create_relative_movement_group(content=content)
-        self._create_absolute_movement_group(content=content)
-        self._create_settings_group(content=content)
-        self._create_device_info_group(content=content)
+        self._create_status_group(page=page)
+        self._create_relative_movement_group(page=page)
+        self._create_absolute_movement_group(page=page)
+        self._create_settings_group(page=page)
+        self._create_device_info_group(page=page)
 
     def _create_status_group(
         self,
-        content: Gtk.Box,
+        page: Adw.PreferencesPage,
     ) -> None:
         group = Adw.PreferencesGroup(
             title='Motor Status',
@@ -223,32 +202,37 @@ class MotorPage(Adw.NavigationPage):
         )
         group.add(child=self.connection_row)
 
-        content.append(child=group)
+        page.add(group=group)
 
     def _create_relative_movement_group(
         self,
-        content: Gtk.Box,
+        page: Adw.PreferencesPage,
     ) -> None:
         group = Adw.PreferencesGroup(
             title='Relative Movement',
-            description='Rotate relative to the current position'
+            description='Rotate relative to the current position',
         )
 
-        self.relative_angle_row = Adw.SpinRow.new_with_range(
+        # Row containing the label and spin button
+        self.relative_angle_row = Adw.ActionRow(
+            title='Angle',
+            subtitle='Degrees',
+        )
+
+        self.relative_angle_spin = Gtk.SpinButton.new_with_range(
             0.01,
             360.0,
             0.1,
         )
-        self.relative_angle_row.set_title(
-            title='Angle'
-        )
-        self.relative_angle_row.set_subtitle(
-            subtitle='Degrees'
-        )
-        self.relative_angle_row.set_digits(digits=2)
-        self.relative_angle_row.set_value(value=15.0)
+        self.relative_angle_spin.set_digits(2)
+        self.relative_angle_spin.set_value(15.0)
+        self.relative_angle_spin.set_valign(Gtk.Align.CENTER)
 
-        group.add(child=self.relative_angle_row)
+        self.relative_angle_row.add_suffix(
+            self.relative_angle_spin
+        )
+
+        group.add(self.relative_angle_row)
 
         button_box = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
@@ -272,7 +256,7 @@ class MotorPage(Adw.NavigationPage):
             icon_name='object-rotate-right-symbolic',
         )
         clockwise_button.add_css_class(
-            css_class='suggested-action'
+            'suggested-action'
         )
         clockwise_button.connect(
             'clicked',
@@ -280,36 +264,40 @@ class MotorPage(Adw.NavigationPage):
             1.0,
         )
 
-        button_box.append(child=anticlockwise_button)
-        button_box.append(child=clockwise_button)
+        button_box.append(anticlockwise_button)
+        button_box.append(clockwise_button)
 
-        group.add(child=button_box)
-        content.append(child=group)
+        group.add(button_box)
+        page.add(group)
 
     def _create_absolute_movement_group(
         self,
-        content: Gtk.Box,
+        page: Adw.PreferencesPage,
     ) -> None:
         group = Adw.PreferencesGroup(
             title='Absolute Movement',
             description='Move to an absolute angular position',
         )
 
-        self.target_position_row = Adw.SpinRow.new_with_range(
+        self.target_position_row = Adw.ActionRow(
+            title='Target Position',
+            subtitle='Degrees',
+        )
+
+        self.target_position_spin = Gtk.SpinButton.new_with_range(
             -3600.0,
             3600.0,
             0.1,
         )
-        self.target_position_row.set_title(
-            title='Target Position'
-        )
-        self.target_position_row.set_subtitle(
-            subtitle='Degrees'
-        )
-        self.target_position_row.set_digits(digits=2)
-        self.target_position_row.set_value(value=0)
+        self.target_position_spin.set_digits(2)
+        self.target_position_spin.set_value(0.0)
+        self.target_position_spin.set_valign(Gtk.Align.CENTER)
 
-        group.add(child=self.target_position_row)
+        self.target_position_row.add_suffix(
+            self.target_position_spin
+        )
+
+        group.add(self.target_position_row)
 
         move_button = Gtk.Button(
             label='Move to Position',
@@ -317,59 +305,70 @@ class MotorPage(Adw.NavigationPage):
             margin_top=12,
         )
         move_button.add_css_class(
-            css_class='suggested-action'
+            'suggested-action'
         )
         move_button.connect(
             'clicked',
             self._on_move_to_clicked,
         )
 
-        group.set_header_suffix(suffix=move_button)
-        content.append(child=group)
+        group.set_header_suffix(move_button)
+        page.add(group)
+
 
     def _create_settings_group(
         self,
-        content: Gtk.Box,
+        page: Adw.PreferencesPage,
     ) -> None:
         group = Adw.PreferencesGroup(
             title='Movement Settings',
         )
 
-        self.acceleration_row = Adw.SpinRow.new_with_range(
+        self.acceleration_row = Adw.ActionRow(
+            title='Acceleration',
+            subtitle='Degrees/s²',
+        )
+
+        self.acceleration_spin = Gtk.SpinButton.new_with_range(
             0.01,
             1000.0,
             0.1,
         )
-        self.acceleration_row.set_title(
-            title='Acceleration'
+        self.acceleration_spin.set_digits(2)
+        self.acceleration_spin.set_value(
+            self._motor.acceleration
         )
-        self.acceleration_row.set_subtitle(
-            subtitle='Degrees/s²'
-        )
-        self.acceleration_row.set_digits(digits=2)
-        self.acceleration_row.set_value(
-            value=self._motor.acceleration
+        self.acceleration_spin.set_valign(
+            Gtk.Align.CENTER
         )
 
-        group.add(child=self.acceleration_row)
+        self.acceleration_row.add_suffix(
+            self.acceleration_spin
+        )
+        group.add(self.acceleration_row)
 
-        self.velocity_row = Adw.SpinRow.new_with_range(
+        self.velocity_row = Adw.ActionRow(
+            title='Maximum Velocity',
+            subtitle='Degrees/s',
+        )
+
+        self.velocity_spin = Gtk.SpinButton.new_with_range(
             0.01,
             1000.0,
             0.1,
         )
-        self.velocity_row.set_title(
-            title='Maximum Velocity'
+        self.velocity_spin.set_digits(2)
+        self.velocity_spin.set_value(
+            self._motor.max_velocity
         )
-        self.velocity_row.set_subtitle(
-            subtitle='Degrees/s'
-        )
-        self.velocity_row.set_digits(digits=2)
-        self.velocity_row.set_value(
-            value=self._motor.max_velocity
+        self.velocity_spin.set_valign(
+            Gtk.Align.CENTER
         )
 
-        group.add(child=self.velocity_row)
+        self.velocity_row.add_suffix(
+            self.velocity_spin
+        )
+        group.add(self.velocity_row)
 
         apply_button = Gtk.Button(
             label='Apply settings',
@@ -381,12 +380,12 @@ class MotorPage(Adw.NavigationPage):
             self._on_apply_settings_clicked,
         )
 
-        group.set_header_suffix(suffix=apply_button)
-        content.append(child=group)
-    
+        group.set_header_suffix(apply_button)
+        page.add(group)
+
     def _create_device_info_group(
             self,
-            content: Gtk.Box
+            page: Adw.PreferencesPage
     ) -> None:
         group = Adw.PreferencesGroup(
             title='Device Information',
@@ -428,7 +427,7 @@ class MotorPage(Adw.NavigationPage):
         self.firmware_version_row.add_suffix(widget=self.firmware_version_label)
         group.add(child=self.firmware_version_row)
 
-        content.append(child=group)
+        page.add(group=group)
 
     def _show_toast(
         self,
@@ -517,7 +516,7 @@ class MotorPage(Adw.NavigationPage):
         direction: float,
     ) -> None:
         angle = (
-            self.relative_angle_row.get_value()
+            self.relative_angle_spin.get_value()
             * direction
         )
 
@@ -531,10 +530,10 @@ class MotorPage(Adw.NavigationPage):
         self,
         _button: Gtk.Button,
     ) -> None:
-        target = self.target_position_row.get_value()
+        target = self.target_position_spin.get_value()
 
-        acceleration = self.acceleration_row.get_value()
-        max_velocity = self.velocity_row.get_value()
+        acceleration = self.acceleration_spin.get_value()
+        max_velocity = self.velocity_spin.get_value()
 
         self._run_motor_command(
             lambda: self._motor.move_to(
@@ -548,8 +547,8 @@ class MotorPage(Adw.NavigationPage):
         self,
         _button: Gtk.Button,
     ) -> None:
-        acceleration = self.acceleration_row.get_value()
-        max_velocity = self.velocity_row.get_value()
+        acceleration = self.acceleration_spin.get_value()
+        max_velocity = self.velocity_spin.get_value()
 
         self._run_motor_command(
             lambda: self._motor.update_settings(

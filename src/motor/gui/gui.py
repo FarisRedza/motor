@@ -20,6 +20,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack = Gtk.Stack()
         self.set_content(content=self.stack)
 
+        self.motor_page: typing.Optional[MotorPage] = None
         self.motor_select_page = MotorSelectPage(
             on_motor_selected=self.open_motor
         )
@@ -27,6 +28,7 @@ class MainWindow(Adw.ApplicationWindow):
             child=self.motor_select_page,
             name='motor-selection'
         )
+        self.stack.set_visible_child_name('motor-selection')
 
         self.connect(
             'close-request',
@@ -48,13 +50,16 @@ class MainWindow(Adw.ApplicationWindow):
 
     def show_device_selection(self) -> None:
         self.stack.set_visible_child_name('motor-selection')
-        self.stack.remove(child=self.motor_page)
+
+        if self.motor_page is not None:
+            self.stack.remove(self.motor_page)
+            self.motor_page = None
 
     def _on_close_request(
         self,
         _window: Adw.ApplicationWindow,
     ) -> bool:
-        if self.motor_page:
+        if self.motor_page is not None:
             if self.motor_page._update_timer_id is not None:
                 GLib.source_remove(
                     tag=self.motor_page._update_timer_id
@@ -128,7 +133,10 @@ class App(Adw.Application):
 
 
 def main() -> int:
-    app = App(application_id='com.github.FarisRedza.Motor')
+    app = App(
+        application_id='com.github.FarisRedza.Motor',
+        flags=Gio.ApplicationFlags.NON_UNIQUE,
+    )
     return app.run(None)
 
 

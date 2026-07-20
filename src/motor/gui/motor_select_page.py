@@ -9,12 +9,14 @@ from motor.base_motor import Motor
 from motor import dummy_motor, k10cr2_motor, thorlabs_motor, standa_motor
 
 
-class MotorSelectPage(Adw.NavigationPage):
+class MotorSelectPage(Gtk.Box):
     def __init__(
             self,
             on_motor_selected: typing.Callable
     ) -> None:
-        super().__init__(title='Select Motor')
+        super().__init__(
+            orientation=Gtk.Orientation.VERTICAL
+        )
         self.on_motor_selected = on_motor_selected
 
         self._build_ui()
@@ -54,13 +56,8 @@ class MotorSelectPage(Adw.NavigationPage):
                 raise ValueError(f'Unknown motor type: {model}')
 
     def _build_ui(self) -> None:
-        main_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL
-        )
-        self.set_child(child=main_box)
-
         header_bar = Adw.HeaderBar()
-        main_box.append(child=header_bar)
+        self.append(child=header_bar)
 
         # menu button
         menu = Gio.Menu.new()
@@ -75,26 +72,19 @@ class MotorSelectPage(Adw.NavigationPage):
         )
         header_bar.pack_end(child=menu_button)
 
-        margin_v = 24
-        margin_h = 18
-        content = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=margin_v,
-            margin_top=margin_v,
-            margin_bottom=margin_v,
-            margin_start=margin_h,
-            margin_end=margin_h,
+        page = Adw.PreferencesPage(
+            title='Select Motor'
         )
-        main_box.append(child=content)
+        self.append(child=page)
 
-        self._create_local_devices_group(content=content)
-        self._create_remote_connection_group(content=content)
+        self._create_local_devices_group(page=page)
+        self._create_remote_connection_group(page=page)
 
-    def _create_local_devices_group(self, content: Gtk.Box) -> None:
+    def _create_local_devices_group(self, page: Adw.PreferencesPage) -> None:
         group = Adw.PreferencesGroup(
             title='Local Devices'
         )
-        content.append(child=group)
+        page.add(group=group)
         
         local_devices = []
 
@@ -136,11 +126,11 @@ class MotorSelectPage(Adw.NavigationPage):
                 widget=connect_device_button
             )
 
-    def _create_remote_connection_group(self, content: Gtk.Box) -> None:
+    def _create_remote_connection_group(self, page: Adw.PreferencesPage) -> None:
         group = Adw.PreferencesGroup(
             title='Remote Connection'
         )
-        content.append(child=group)
+        page.add(group=group)
 
         connect_button = Gtk.Button(
             label='Connect',
