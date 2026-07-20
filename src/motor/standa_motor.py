@@ -10,10 +10,10 @@ try:
     import libximc.highlevel as ximc
 except ModuleNotFoundError:
     ximc = None
+else:
+    ximc.MoveFlags._boundary_ = enum.KEEP
 
 from motor import base_motor
-
-ximc.MoveFlags._boundary_ = enum.KEEP
 
 USTEP_PER_STEP = 256
 FULL_STEP = 28_800
