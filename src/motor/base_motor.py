@@ -92,8 +92,8 @@ class Motor(ABC):
     def jog(
             self,
             direction: MotorDirection,
-            acceleration: float,
-            max_velocity: float
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
     ) -> None:
         raise NotImplementedError
 
