@@ -6,7 +6,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio
 
 from motor.base_motor import Motor
-from motor import k10cr2_motor, thorlabs_motor, standa_motor
+from motor import dummy_motor, k10cr2_motor, thorlabs_motor, standa_motor
 
 
 class MotorSelectPage(Adw.NavigationPage):
@@ -32,6 +32,9 @@ class MotorSelectPage(Adw.NavigationPage):
         model = motor[1]
 
         match model:
+            case 'Dummy Motor':
+                return dummy_motor.DummyMotor()
+
             case 'Kinesis K10CR1 Rotary Stage':
                 return thorlabs_motor.ThorlabsMotor(
                     serial_number=sn,
@@ -71,7 +74,7 @@ class MotorSelectPage(Adw.NavigationPage):
             popover=popover
         )
         header_bar.pack_end(child=menu_button)
-        
+
         margin_v = 24
         margin_h = 18
         content = Gtk.Box(
@@ -86,7 +89,7 @@ class MotorSelectPage(Adw.NavigationPage):
 
         self._create_local_devices_group(content=content)
         self._create_remote_connection_group(content=content)
-    
+
     def _create_local_devices_group(self, content: Gtk.Box) -> None:
         group = Adw.PreferencesGroup(
             title='Local Devices'
@@ -94,6 +97,8 @@ class MotorSelectPage(Adw.NavigationPage):
         content.append(child=group)
         
         local_devices = []
+
+        local_devices.extend(dummy_motor.list_dummy_motors())
 
         if thorlabs_motor.is_available():
             local_devices.extend(thorlabs_motor.list_kinesis_motors())
