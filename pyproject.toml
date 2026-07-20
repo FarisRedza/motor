@@ -6,9 +6,7 @@ build-backend = 'setuptools.build_meta'
 name = 'motor'
 version = '0.1'
 requires-python = '>=3.11'
-dependencies = [
-
-]
+dependencies = []
 authors = [
     {name = 'Faris Redza', email = 'faris.redza1999@gmail.com'}
 ]
@@ -27,6 +25,11 @@ standa = [
 ]
 thorlabs = [
     'pylablib-lightweight>=1.4',
+    'numba>=0.61',
+    'pyserial>=3.5'
+]
+k10cr2 = [
+    'pyserial>=3.5'
 ]
 elliptec = [
     'elliptec>=0.1'
