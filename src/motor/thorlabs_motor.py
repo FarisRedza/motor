@@ -39,9 +39,10 @@ def list_kinesis_motors_linux() -> list[tuple[str, str]]:
     )
 
     if not serial_directory.exists():
-        raise RuntimeError(
-            f'{serial_directory} does not exist'
-        )
+        # raise RuntimeError(
+        #     f'{serial_directory} does not exist'
+        # )
+        return []
 
     motors: list[tuple[str, str]] = []
     for device_id in serial_directory.iterdir():
@@ -246,6 +247,38 @@ class ThorlabsMotor(base_motor.Motor):
         with self._state_lock:
             self._is_moving = True
 
+    def jog(
+            self,
+            direction: base_motor.MotorDirection,
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
+    ) -> None:
+        requested_acceleration = (
+            self.acceleration
+            if acceleration is None
+            else acceleration
+        )
+        requested_max_velocity = (
+            self.max_velocity
+            if max_velocity is None
+            else max_velocity
+        )
+
+        # if acceleration is not None or max_velocity is not None:
+        self.update_settings(
+            acceleration=requested_acceleration,
+            max_velocity=requested_max_velocity,
+        )
+
+        with self._motor_lock:
+            self._motor.jog(
+                direction=direction.value,
+                kind='builtin'
+            )
+        
+        with self._state_lock:
+            self._is_moving = True
+
     def stop(self) -> None:
         """Stop the current movement using normal deceleration."""
         with self._motor_lock:
@@ -320,10 +353,8 @@ class ThorlabsMotor(base_motor.Motor):
     def _read_motor_state(self) -> tuple[float, bool]:
         """Read position and movement state under one controller lock."""
         with self._motor_lock:
-            pos = self._motor.get_position()
+            position = self._motor.get_position()
             moving = self._motor.is_moving()
-
-        position = pos
 
         return position, moving
 
@@ -403,6 +434,13 @@ class ThorlabsMotor(base_motor.Motor):
         if max_velocity <= 0:
             raise ValueError('max_velocity must be positive')
 
+        with self._motor_lock:
+            self._motor.setup_jog(
+                mode='continuous',
+                acceleration=acceleration,
+                max_velocity=max_velocity
+            )
+
         self.acceleration = acceleration
         self.max_velocity = max_velocity
 
@@ -423,15 +461,20 @@ if __name__ == '__main__':
             print(f'Starting position: {motor.position:.3f}°')
 
             # motor.move_by(angle=90)
-            motor.move_to(position=90)
+            # motor.move_to(position=90)
+            motor.jog(
+                direction=base_motor.MotorDirection.FORWARD
+            )
 
-            while motor.is_moving:
+            # while motor.is_moving:
+            for _ in range(10):
                 print(
                     f'\rPosition: {motor.position:8.3f}°',
                     end='',
                     flush=True,
                 )
-                threading.Event().wait(0.1)
+                threading.Event().wait(0.5)
+            motor.stop()
 
             print(f'\nFinal position: {motor.position:.3f}°')
 
