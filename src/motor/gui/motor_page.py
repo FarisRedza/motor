@@ -324,7 +324,7 @@ class MotorPage(Adw.NavigationPage):
             self._on_move_to_clicked,
         )
 
-        group.add(child=move_button)
+        group.set_header_suffix(suffix=move_button)
         content.append(child=group)
 
     def _create_settings_group(
@@ -381,7 +381,7 @@ class MotorPage(Adw.NavigationPage):
             self._on_apply_settings_clicked,
         )
 
-        group.add(child=apply_button)
+        group.set_header_suffix(suffix=apply_button)
         content.append(child=group)
     
     def _create_device_info_group(
