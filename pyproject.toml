@@ -5,7 +5,7 @@ build-backend = 'setuptools.build_meta'
 [project]
 name = 'motor'
 version = '0.1'
-requires-python = '>=3.11'
+requires-python = '>=3.10'
 dependencies = []
 authors = [
     {name = 'Faris Redza', email = 'faris.redza1999@gmail.com'}
@@ -17,7 +17,8 @@ readme = 'README.md'
 
 [project.optional-dependencies]
 gui = [
-    'pygobject',
+    'pygobject==3.50.1; python_version < "3.11"',
+    'pygobject>=3.52; python_version >= "3.11"',
     'pygobject-stubs'
 ]
 standa = [
