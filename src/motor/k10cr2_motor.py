@@ -438,6 +438,18 @@ class APTMotor():
         data = self._mgmsg_mot_get_potparams()
         print(data)
 
+    def _get_status_bits(
+            self,
+            channel: int = 1
+    ) -> MotorStatusBits:
+        self._mgmsg_mot_req_statusbits(
+            chan_ident=channel
+        )
+
+        status_bits = self._mgmsg_mot_get_statusbits()
+
+        return MotorStatusBits(status_bits)
+
     def _send(
             self,
             msg_id: int,
@@ -744,11 +756,29 @@ class APTMotor():
     def _mgmsg_mot_set_eepromparams(self):
         pass
 
-    def _mgmsg_mot_req_statusbits(self):
-        pass
+    def _mgmsg_mot_req_statusbits(
+            self,
+            chan_ident: int = 1
+    ) -> None:
+        self._send(
+            msg_id=0x0429,
+            param1=chan_ident
+        )
 
-    def _mgmsg_mot_get_statusbits(self):
-        pass
+    def _mgmsg_mot_get_statusbits(self) -> int:
+        data = self._recv(
+            expected_msg_id=0x042A,
+            length=12
+        )
+
+        chan_ident, status_bits = struct.unpack_from(
+            '<HI',
+            data,
+            offset=6
+        )
+
+        return status_bits
+
 
 class ThorlabsCageRotator(APTMotor):
     def __init__(
@@ -861,8 +891,18 @@ class ThorlabsCageRotator(APTMotor):
             stop_mode=1 if immediate else 2
         )
     
-    # def is_moving(self) -> bool:
-    #     return self._moving
+    def is_moving(self) -> bool:
+        status = self._get_status_bits()
+
+        moving_flags = (
+            MotorStatusBits.INMOTIONCW
+            | MotorStatusBits.INMOTIONCCW
+            | MotorStatusBits.JOGGINGCW
+            | MotorStatusBits.JOGGINGCCW
+            | MotorStatusBits.HOMING
+        )
+
+        return bool(status & moving_flags)
 
     def home(self) -> None:
         self._mgmsg_mot_move_home(chan_ident=1)
