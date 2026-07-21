@@ -2,13 +2,21 @@ import pathlib
 import platform
 import threading
 import time
+import typing
+from collections.abc import Callable
 
 try:
     import elliptec
-except ImportError:
-    raise ImportError('elliptec is required for Elliptec motor support. Please install it with "pip install elliptec"')
+except ModuleNotFoundError:
+    elliptec = None
 
-from . import base_motor
+from motor import base_motor
+
+PositionCallback = Callable[[float], None]
+
+
+def is_available() -> bool:
+    return elliptec is not None
 
 def list_elliptec_motors() -> list[tuple[str, str]]:
     system = platform.system()
@@ -16,20 +24,26 @@ def list_elliptec_motors() -> list[tuple[str, str]]:
         case 'Linux':
             return list_elliptec_motors_linux()
         
+        case 'Windows':
+            raise NotImplementedError(
+                'Windows support not implemented yet'
+            )
+
         case _:
-            raise NotImplementedError(f'Unsupported system: {system}')
+            raise ValueError(f'{system} is not supported')
 
 def list_elliptec_motors_linux() -> list[tuple[str, str]]:
-    symlinks = pathlib.Path('/dev/serial/by-id')
-    if not symlinks.exists():
+    serial_directory = pathlib.Path('/dev/serial/by-id')
+    
+    if not serial_directory.exists():
         return []
 
     motors: list[tuple[str, str]] = []
-    for s in symlinks.iterdir():
-        if 'FTDI_FT230X' in s.name:
+    for device_id in serial_directory.iterdir():
+        if 'FTDI_FT230X' in device_id.name:
             try:
                 controller = elliptec.Controller(
-                    port=str(s.resolve())
+                    port=str(device_id.resolve())
                 )
                 dev_info = controller.send_instruction(instruction=b'in')
                 controller.close_connection()
@@ -44,153 +58,155 @@ def list_elliptec_motors_linux() -> list[tuple[str, str]]:
 class ElliptecMotor(base_motor.Motor):
     def __init__(
             self,
-            serial_number: str
+            serial_number: str,
+            *,
+            tracking_interval: float = 0.05,
+            start_tracking: bool = True,
     ) -> None:
+        self._tracking_interval = tracking_interval
+
+        self._state_lock = threading.Lock()
+
+        self._motor_lock = threading.Lock()
+
+        self._tracking_stop_event = threading.Event()
+        self._tracking_thread: typing.Optional[threading.Thread] = None
+
+        self._position = 0.0
+        self._is_moving = False
+        self._tracking_error: typing.Optional[Exception] = None
+
+        self._position_callbacks: list[PositionCallback] = []
+
+        self._connect(serial_number=serial_number)
+
+        self.device_info = self._get_device_info()
+        self._position = self._read_position()
+        self._is_moving = self._read_is_moving()
+        self.acceleration = 20.0
+        self.max_velocity = 25.0
         self._motor_max_velocity_serial = 64
-        self._motor_max_velocity = 430
-        self._motor_min_velocity = 0.5 * self._motor_max_velocity
 
-        self.direction = base_motor.MotorDirection.IDLE
-        self.step_size = 5.0
-        self.acceleration = 0.0
-        self.max_velocity = 0.0
+        if start_tracking:
+            self.start_tracking()  
 
-        self._lock = threading.Lock()
-        self._stop_event = threading.Event()
-        self._movement_thread: threading.Thread | None = None
-        self._position_thread: threading.Thread | None = None
-        self._position_polling = 0.1
+    @property
+    def position(self) -> float:
+        """Return the most recently measured position in degrees.
 
-        self._get_motor(serial_number=serial_number)
-        self.position = self._get_angle()        
-        
-        self._motor.send_instruction(
-            instruction=b'sv',
-            message='64'
+        This returns immediately and does not communicate with the motor.
+        """
+        with self._state_lock:
+            return self._position
+
+    @property
+    def is_moving(self) -> bool:
+        """Return the most recently measured movement state."""
+        with self._state_lock:
+            return self._is_moving
+
+    @property
+    def is_tracking(self) -> bool:
+        thread = self._tracking_thread
+        return thread is not None and thread.is_alive()
+
+    @property
+    def tracking_error(self) -> typing.Optional[Exception]:
+        """Return the most recent tracking error, if one occurred."""
+        with self._state_lock:
+            return self._tracking_error
+
+    def start_tracking(self) -> None:
+        """Start continuously refreshing position and movement state."""
+        if self.is_tracking:
+            return
+
+        self._tracking_stop_event.clear()
+
+        self._tracking_thread = threading.Thread(
+            target=self._tracking_loop,
+            name='standa-position-tracker',
+            daemon=True,
         )
-    
-    def _velocity_to_serial(self, velocity: int) -> int:
-        return int(velocity/self._motor_max_velocity_serial) * self._motor_max_velocity_serial
-    
-    def _serial_to_velocity(self, serial: int) -> float:
-        return (serial / self._motor_max_velocity_serial) * self._motor_max_velocity
+        self._tracking_thread.start()
 
-    def disconnect(self) -> None:
-        self._motor.close_connection()
+    def stop_tracking(self) -> None:
+        """Stop continuous position tracking."""
+        thread = self._tracking_thread
 
-    def stop(self) -> None:
-        with self._lock:
-            self._motor.send_instruction(instruction=b'st')
-        self.position = self._get_angle()
+        if thread is None:
+            return
 
-    def move_by(
-            self,
-            angle: float,
-            acceleration: float = 0,
-            max_velocity: float = 0
-    ) -> bool:
-        self._start_tracking_position()
-        match angle:
-            case a if a > 0:
-                self.direction = base_motor.MotorDirection.FORWARD
-            case a if a < 0:
-                self.direction = base_motor.MotorDirection.BACKWARD
-            case 0:
-                self.direction = base_motor.MotorDirection.IDLE
-            case _:
-                raise RuntimeError('Invalid angle')
+        self._tracking_stop_event.set()
 
-        try:
-            with self._lock:
-                self._motor.shift_angle(angle=angle)
-        except Exception as e:
-            print(f'Exception in move_by: {e}')
-            self._stop_tracking_position()
-            return False
-        else:
-            self._stop_tracking_position()
-            return True
-    
-    def move_to(
-            self,
-            position: float,
-            acceleration: float = 0,
-            max_velocity: float = 0
-    ) -> bool:
-        delta = position - self.position
-        self.move_by(angle=delta)
+        # Avoid trying to join the current thread if disconnect() was
+        # somehow called from a callback.
+        if thread is not threading.current_thread():
+            thread.join(
+                timeout=max(1.0, self._tracking_interval * 4)
+            )
 
-        # self._motor.set_angle(angle=position)
+        self._tracking_thread = None
 
-        return True
-    
-    def jog(
-            self,
-            direction: base_motor.MotorDirection,
-            acceleration: float = 0,
-            max_velocity: float = 0
-    ) -> None:
-        match direction:
-            case base_motor.MotorDirection.FORWARD:
-                dir = 'fw'
-            case base_motor.MotorDirection.BACKWARD:
-                dir = 'bw'
-            case base_motor.MotorDirection.IDLE:
-                dir = None
-            case _:
-                raise RuntimeError('Invalid direction')
+    def _tracking_loop(self) -> None:
+        while not self._tracking_stop_event.is_set():
+            try:
+                position, moving = self._read_motor_state()
 
-        if dir:
-            with self._lock:
-                self._motor.send_instruction(
-                    instruction=b'sv',
-                    # message='44'
-                    message='32'
-                )
-                self._motor.set_jog_step(angle=0)
-                self._motor.send_instruction(
-                    instruction=dir.encode(encoding='utf-8')
+                self._update_cached_state(
+                    position=position,
+                    moving=moving,
                 )
 
-    def threaded_move_by(
-            self,
-            angle: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> None:
-        if self._movement_thread and self._movement_thread.is_alive():
-            return
-        self._movement_thread = threading.Thread(
-            target=self.move_by,
-            args=(angle, acceleration, max_velocity),
-            daemon=True
-        )
-        self._movement_thread.start()
+                with self._state_lock:
+                    self._tracking_error = None
+                    callbacks = tuple(self._position_callbacks)
 
-    def threaded_move_to(
-            self,
-            position: float,
-            acceleration: float,
-            max_velocity: float
+                for callback in callbacks:
+                    try:
+                        callback(position)
+                    except Exception:
+                        pass
+
+            except Exception as error:
+                with self._state_lock:
+                    self._tracking_error = error
+
+            self._tracking_stop_event.wait(
+                self._tracking_interval
+            )
+
+    def _update_cached_state(
+        self,
+        *,
+        position: float,
+        moving: bool,
     ) -> None:
-        if self._movement_thread and self._movement_thread.is_alive():
-            return
-        self._movement_thread = threading.Thread(
-            target=self.move_to,
-            args=(position, acceleration, max_velocity),
-            daemon=True
-        )
-        self._movement_thread.start()
-    
-    def _get_motor(self, serial_number: str) -> None:
+        with self._state_lock:
+            self._position = position
+            self._is_moving = moving
+
+    def _read_motor_state(self) -> tuple[float, bool]:
+        """Read position and movement state under one controller lock."""
+        with self._motor_lock:
+            position = self._motor.get_angle()
+            # moving = self._motor.is_moving()
+            moving = True
+            # TODO: need to find function for this, may have to use
+            # something like _DEVGET_STATUS from Elliptec Thorlabs
+            # ELLx Resonant Piezo Motor Communication Protocol
+
+        return position, moving
+
+    def _connect(self, serial_number: str) -> None:
         system = platform.system()
         match system:
             case 'Linux':
-                symlinks = pathlib.Path('/dev/serial/by-id').iterdir()
-                for s in symlinks:
-                    if 'FTDI_FT230X' in s.name:
+                serial_directory = pathlib.Path('/dev/serial/by-id').iterdir()
+                for device_id in serial_directory:
+                    if 'FTDI_FT230X' in device_id.name:
                         controller = elliptec.Controller(
-                            port=str(s.resolve())
+                            port=str(device_id.resolve())
                         )
                         dev_info = controller.send_instruction(instruction=b'in')
                         if isinstance(dev_info, dict) and serial_number in dev_info.values():
@@ -213,35 +229,134 @@ class ElliptecMotor(base_motor.Motor):
             case _:
                 raise NotImplementedError(f'Unsupported system: {system}')
 
-    def _track_position(self) -> None:
-        while not self._stop_event.is_set():
-            try:
-                self.position = self._get_angle()
-            except Exception as e:
-                print(f'[tracking error] {e}')
-            time.sleep(self._position_polling)
+    
+    def _velocity_to_serial(self, velocity: int) -> int:
+        return int(velocity/self._motor_max_velocity_serial) * self._motor_max_velocity_serial
+    
+    def _serial_to_velocity(self, serial: int) -> float:
+        return (serial / self._motor_max_velocity_serial) * self._motor_max_velocity
 
-    def _start_tracking_position(self) -> None:
-        if self._position_thread and self._position_thread.is_alive():
-            return
-        self._stop_event.clear()
-        self._position_thread = threading.Thread(
-            target=self._track_position,
-            daemon=True
+    def disconnect(self) -> None:
+        self._motor.close_connection()
+
+    def stop(self) -> None:
+        with self._motor_lock:
+            self._motor.send_instruction(instruction=b'st')
+
+    def __enter__(self) -> 'ElliptecMotor':
+        return self
+
+    def __exit__(
+        self,
+        exc_type: object,
+        exc_value: object,
+        traceback: object,
+    ) -> None:
+        self.disconnect()
+
+    def move_by(
+            self,
+            angle: float,
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None,
+    ) -> None:
+        requested_acceleration = (
+            self.acceleration
+            if acceleration is None
+            else acceleration
         )
-        self._position_thread.start()
+        requested_max_velocity = (
+            self.max_velocity
+            if max_velocity is None
+            else max_velocity
+        )
 
-    def _stop_tracking_position(self) -> None:
-        self._stop_event.set()
-        if self._position_thread:
-            self._position_thread.join()
-        self._position_thread = None
-        self.direction = base_motor.MotorDirection.IDLE
+        if acceleration is not None or max_velocity is not None:
+            self.update_settings(
+                acceleration=requested_acceleration,
+                max_velocity=requested_max_velocity,
+            )
+
+        self._motor.shift_angle(angle=angle)
+    
+    def move_to(
+            self,
+            position: float,
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None,
+    ) -> None:
+        requested_acceleration = (
+            self.acceleration
+            if acceleration is None
+            else acceleration
+        )
+        requested_max_velocity = (
+            self.max_velocity
+            if max_velocity is None
+            else max_velocity
+        )
+
+        if acceleration is not None or max_velocity is not None:
+            self.update_settings(
+                acceleration=requested_acceleration,
+                max_velocity=requested_max_velocity,
+            )
+
+        delta = position - self.position
+        self.move_by(angle=delta)
+    
+    def jog(
+            self,
+            direction: base_motor.MotorDirection,
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
+    ) -> None:
+        requested_acceleration = (
+            self.acceleration
+            if acceleration is None
+            else acceleration
+        )
+        requested_max_velocity = (
+            self.max_velocity
+            if max_velocity is None
+            else max_velocity
+        )
+
+        # if acceleration is not None or max_velocity is not None:
+        self.update_settings(
+            acceleration=requested_acceleration,
+            max_velocity=requested_max_velocity,
+        )
+
+        with self._state_lock:
+            self._is_moving = True
+
+    def update_settings(
+        self,
+        acceleration: float,
+        max_velocity: float,
+    ) -> None:
+        if acceleration <= 0:
+            raise ValueError('acceleration must be positive')
+
+        if max_velocity <= 0:
+            raise ValueError('max_velocity must be positive')
+
+        with self._motor_lock:
+                self._motor.send_instruction(
+                    instruction=b'sv',
+                    # message='44'
+                    message='32'
+                )
+                self._motor.set_jog_step(angle=0)
+                self._motor.send_instruction(
+                    instruction=dir.encode(encoding='utf-8')
+                )
 
     def _get_angle(self) -> float:
         angle = None
         while angle is None:
-            with self._lock:
+            with self._motor_lock:
                 angle = self._motor.get_angle()
                 # position = self._motor.send_instruction(instruction=b'gp')[2]
                 # angle = self._position_to_angle(position=int(position))
