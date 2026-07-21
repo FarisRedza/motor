@@ -138,10 +138,12 @@ class MotorPage(Gtk.Box):
         )
         header_bar.pack_end(child=self.stop_button)
 
+        self.append(child=self.toast_overlay)
+
         page = Adw.PreferencesPage(
             title=f'Motor Controller: {self._motor.device_info.serial_number}'
         )
-        self.append(child=page)
+        self.toast_overlay.set_child(child=page)
 
         self._create_status_group(page=page)
         self._create_relative_movement_group(page=page)
@@ -557,3 +559,4 @@ class MotorPage(Gtk.Box):
             ),
             success_message='Settings applied',
         )
+        self._show_toast(message='Settings applied')
