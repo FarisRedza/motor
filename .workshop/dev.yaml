@@ -2,3 +2,4 @@ name: dev
 base: ubuntu@22.04
 sdks:
   - name: vscode-remote
+  - name: project-python-gtk

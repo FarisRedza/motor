@@ -1,0 +1,2 @@
+apt-get update
+apt-get install python3-{dev,venv} libadwaita-1-dev
