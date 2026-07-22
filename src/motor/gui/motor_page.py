@@ -103,7 +103,7 @@ class MotorPage(Gtk.Box):
 
         self.back_button = Gtk.Button(
             label='Back',
-            icon_name='carousel-arrow-previous-symbolic',
+            icon_name='go-previous-symbolic',
             tooltip_markup='Return to motor selection'
         )
         self.back_button.connect(
@@ -246,6 +246,9 @@ class MotorPage(Gtk.Box):
         anticlockwise_button = Gtk.Button(
             label='Anticlockwise',
             icon_name='object-rotate-left-symbolic',
+        )
+        anticlockwise_button.add_css_class(
+            'suggested-action'
         )
         anticlockwise_button.connect(
             'clicked',
@@ -559,4 +562,3 @@ class MotorPage(Gtk.Box):
             ),
             success_message='Settings applied',
         )
-        self._show_toast(message='Settings applied')

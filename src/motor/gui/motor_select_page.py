@@ -109,7 +109,7 @@ class MotorSelectPage(Gtk.Box):
 
             connect_device_button = Gtk.Button(
                 label='Connect',
-                icon_name='carousel-arrow-next-symbolic',
+                icon_name='go-next-symbolic',
                 css_classes=['flat'],
                 valign=Gtk.Align.CENTER
             )
