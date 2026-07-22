@@ -217,4 +217,5 @@ Mkfile.old
 dkms.conf
 
 .workshop.lock
-.devcontainer/devcontainer-lock.json
+*devcontainer-lock.json
+.venv*

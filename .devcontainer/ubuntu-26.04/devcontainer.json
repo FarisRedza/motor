@@ -1,9 +1,9 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
 {
-	"name": "Ubuntu",
+	"name": "Ubuntu 26.04",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/base:jammy",
+	"image": "mcr.microsoft.com/devcontainers/base:resolute",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
@@ -11,7 +11,9 @@
 			"packages": [
 				"python3-venv",
 				"python3-dev",
-				"libadwaita-1-dev"
+				"libadwaita-1-dev",
+				"girepository-2.0",
+				"librsvg2-common"
 			]
 		}
 	},
@@ -20,7 +22,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "rm -rf .venv && python3 -m venv .venv && .venv/bin/pip install -e .[gui]",
+	"postCreateCommand": "rm -rf .venv_26.04 && python3 -m venv .venv_26.04 && .venv_26.04/bin/pip install -e .[gui] && source .venv_26.04/bin/activate",
 
 	// Configure tool-specific properties.
 	"customizations": {
