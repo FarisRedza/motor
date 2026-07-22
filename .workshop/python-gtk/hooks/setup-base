@@ -1,2 +1,2 @@
 apt-get update
-apt-get install python3-{dev,venv} libadwaita-1-dev
+apt-get install python3-{dev,venv} libadwaita-1-dev librsvg2-common
