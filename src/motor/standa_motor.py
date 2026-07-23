@@ -6,12 +6,33 @@ import threading
 import typing
 from collections.abc import Callable
 
+def _patch_libximc_python310() -> None:
+    """Work around libximc rejecting unknown MoveFlags bits on Python < 3.11."""
+
+    if hasattr(enum, "KEEP"):
+        ximc.MoveFlags._boundary_ = enum.KEEP
+        return
+
+    from libximc.highlevel._structure_types import move_settings_t
+
+    original = move_settings_t.MoveFlags
+
+    def _set_move_flags(self, value):
+        self._MoveFlags = value
+
+    move_settings_t.MoveFlags = property(
+        original.fget,
+        _set_move_flags,
+        original.fdel,
+        original.__doc__,
+    )
+
 try:
     import libximc.highlevel as ximc
 except ModuleNotFoundError:
     ximc = None
 else:
-    ximc.MoveFlags._boundary_ = enum.KEEP
+    _patch_libximc_python310()
 
 from motor import base_motor
 
