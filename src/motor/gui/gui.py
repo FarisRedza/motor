@@ -124,7 +124,7 @@ class App(Adw.Application):
             modal=True,
             visible=True,
             program_name='Motor Controller',
-            version='0.1',
+            version='0.2.0',
             logo_icon_name='object-rotate-right-symbolic',
             website='https://github.com/FarisRedza/motor',
             website_label='GitHub',
