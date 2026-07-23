@@ -39,9 +39,6 @@ def list_kinesis_motors_linux() -> list[tuple[str, str]]:
     )
 
     if not serial_directory.exists():
-        # raise RuntimeError(
-        #     f'{serial_directory} does not exist'
-        # )
         return []
 
     motors: list[tuple[str, str]] = []
