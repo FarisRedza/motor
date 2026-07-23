@@ -17,11 +17,21 @@
 		}
 	},
 
+    "runArgs": [
+        "--device=/dev/ttyUSB0:/dev/ttyUSB0",
+		"--device=/dev/ttyACM0:/dev/ttyACM0",
+        "--group-add=keep-groups"
+    ],
+
+    "mounts": [
+        "source=/dev/serial,target=/dev/serial,type=bind"
+    ],
+
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "rm -rf .venv_22.04 && python3 -m venv .venv_22.04 && .venv_22.04/bin/pip install -e .[gui]",
+	"postCreateCommand": "rm -rf .venv_22.04 && python3 -m venv .venv_22.04 && .venv_22.04/bin/pip install -e .[gui,thorlabs,k10cr2,standa]",
 
 	// Configure tool-specific properties.
 	"customizations": {
