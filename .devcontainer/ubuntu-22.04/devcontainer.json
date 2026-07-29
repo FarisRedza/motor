@@ -18,13 +18,9 @@
 	},
 
     "runArgs": [
-        "--device=/dev/ttyUSB0:/dev/ttyUSB0",
-		"--device=/dev/ttyACM0:/dev/ttyACM0",
-        "--group-add=keep-groups"
-    ],
-
-    "mounts": [
-        "source=/dev/serial,target=/dev/serial,type=bind"
+        "--volume=/dev:/dev:rslave",
+        "--mount=type=devpts,destination=/dev/pts",
+        "--annotation=run.oci.keep_original_groups=1"
     ],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
