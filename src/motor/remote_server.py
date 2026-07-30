@@ -121,7 +121,9 @@ class MotorServer:
             listen_socket.settimeout(1.0)
             self._listen_socket = listen_socket
 
-            logging.info('Motor server listening on %s:%s', self.host, self.port)
+            server_start_msg = f'Motor server listening on {self.host}:{self.port}'
+            print(server_start_msg)
+            logging.info(server_start_msg)
             while not self._stop_event.is_set():
                 try:
                     client_socket, address = listen_socket.accept()
