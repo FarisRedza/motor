@@ -1,4 +1,5 @@
 import typing
+import ipaddress
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -171,6 +172,10 @@ class MotorSelectPage(Gtk.Box):
             text=self._host,
             valign=Gtk.Align.CENTER
         )
+        host_entry.connect(
+            'changed',
+            self.on_set_host
+        )
         host_row.add_suffix(widget=host_entry)
 
         port_row = Adw.ActionRow(title='Port')
@@ -179,7 +184,29 @@ class MotorSelectPage(Gtk.Box):
             text=f'{self._port}',
             valign=Gtk.Align.CENTER
         )
+        port_entry.connect(
+            'changed',
+            self.on_set_port
+        )
         port_row.add_suffix(widget=port_entry)
+
+    def on_set_host(self, entry: Gtk.Entry) -> None:
+        value = entry.get_text()
+        try:
+            ipaddress.IPv4Address(value)
+        except ipaddress.AddressValueError:
+            pass
+        else:
+            self._host = value
+
+    def on_set_port(self, entry: Gtk.Entry) -> None:
+        value = entry.get_text()
+        try:
+            port = int(value)
+        except:
+            pass
+        else:
+            self._port = port
 
     def on_connect_server(
             self,
