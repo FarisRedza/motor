@@ -35,6 +35,18 @@ class MotorSelectPage(Gtk.Box):
         selected_motor = self.get_selected_motor(motor=motor)
         self.on_motor_selected(motor=selected_motor)
 
+    def on_connect_remote_motor(
+            self,
+            button: Gtk.Button,
+            motor: tuple[str, str]
+    ) -> None:
+        selected_motor = remote_motor.RemoteMotor(
+            serial_number=motor[0],
+            host=self._host,
+            port=self._port
+        )
+        self.on_motor_selected(motor=selected_motor)
+
     def get_selected_motor(self, motor: tuple[str, str]) -> Motor:
         sn = motor[0]
         model = motor[1]
@@ -85,7 +97,6 @@ class MotorSelectPage(Gtk.Box):
 
         self._create_local_devices_group(page=page)
         self._create_remote_connection_group(page=page)
-        # self._create_remote_devices_group(page=page)
 
     def _create_local_devices_group(self, page: Adw.PreferencesPage) -> None:
         group = Adw.PreferencesGroup(
@@ -219,7 +230,7 @@ class MotorSelectPage(Gtk.Box):
             connect_device_button.connect(
                 'clicked',
                 lambda button,
-                d=device: self.on_connect_local_motor(
+                d=device: self.on_connect_remote_motor(
                     button=button,
                     motor=d
                 )
