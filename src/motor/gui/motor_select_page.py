@@ -237,35 +237,50 @@ class MotorSelectPage(Gtk.Box):
             suffix=disconnect_button
         )
 
-        remote_devices = remote_motor.list_motors(
-            host=self._host,
-            port=self._port
-        )
-        for device in remote_devices:
-            device_row = Adw.ActionRow(
-                title=device[1],
-                subtitle=f'Serial number: {device[0]}'
+        try:
+            remote_devices = remote_motor.list_motors(
+                host=self._host,
+                port=self._port
             )
-            group.add(child=device_row)
+        except:
+            no_connection_row = Adw.ActionRow(
+                title='Connection failed',
+                subtitle=f'Could not connect to {self._host}:{self._port}'
+            )
+            group.add(child=no_connection_row)
+        else:
+            if len(remote_devices) > 0:
+                for device in remote_devices:
+                    device_row = Adw.ActionRow(
+                        title=device[1],
+                        subtitle=f'Serial number: {device[0]}'
+                    )
+                    group.add(child=device_row)
 
-            connect_device_button = Gtk.Button(
-                label='Connect',
-                icon_name='go-next-symbolic',
-                css_classes=['flat'],
-                valign=Gtk.Align.CENTER
-            )
-            connect_device_button.connect(
-                'clicked',
-                lambda button,
-                d=device: self.on_connect_remote_motor(
-                    button=button,
-                    motor=d
+                    connect_device_button = Gtk.Button(
+                        label='Connect',
+                        icon_name='go-next-symbolic',
+                        css_classes=['flat'],
+                        valign=Gtk.Align.CENTER
+                    )
+                    connect_device_button.connect(
+                        'clicked',
+                        lambda button,
+                        d=device: self.on_connect_remote_motor(
+                            button=button,
+                            motor=d
+                        )
+                    )
+                    device_row.add_suffix(widget=connect_device_button)
+                    device_row.set_activatable_widget(
+                        widget=connect_device_button
+                    )
+            else:
+                no_devices_row = Adw.ActionRow(
+                    title='No devices found',
+                    subtitle='The server has no available motors'
                 )
-            )
-            device_row.add_suffix(widget=connect_device_button)
-            device_row.set_activatable_widget(
-                widget=connect_device_button
-            )
+                group.add(child=no_devices_row)
 
     def _on_disconnect(
             self,
