@@ -109,7 +109,7 @@ class MotorServer:
         self.host = host
         self.port = port
         self.client_timeout = client_timeout
-        self.registry = MotorRegistry(registrations)
+        self.registry = MotorRegistry(registrations=registrations)
         self._stop_event = threading.Event()
         self._listen_socket: typing.Optional[socket.socket] = None
 
@@ -160,7 +160,7 @@ class MotorServer:
             client_socket.settimeout(self.client_timeout)
             try:
                 while True:
-                    request = receive_message(client_socket)
+                    request = receive_message(sock=client_socket)
                     request_id = request.get('id')
                     command = request.get('command')
                     args = request.get('args', {})
@@ -224,53 +224,75 @@ class MotorServer:
             if motor is not None:
                 raise RuntimeError('This client already reserved a motor')
             serial_number = str(args['serial_number'])
-            new_motor = self.registry.reserve(serial_number, owner_id)
+            new_motor = self.registry.reserve(
+                serial_number=serial_number,
+                owner_id=owner_id
+            )
             return {
                 '_motor': new_motor,
                 'device_info': dataclasses.asdict(new_motor.device_info),
-                'state': self._motor_state(new_motor),
+                'state': self._motor_state(motor=new_motor),
             }, False
 
         if motor is None or reserved_serial is None:
             raise RuntimeError('Reserve a motor before issuing this command')
+        else:
+            match command: # these commands require a reserved motor
+                case 'get_state':
+                    return self._motor_state(motor=motor), False
+                case 'move_by':
+                    motor.move_by(
+                        angle=float(args['angle']),
+                        acceleration=self._optional_float(
+                            value=args.get('acceleration')
+                        ),
+                        max_velocity=self._optional_float(
+                            value=args.get('max_velocity')
+                        ),
+                    )
+                    return self._motor_state(motor=motor), False
+                case 'move_to':
+                    motor.move_to(
+                        position=float(args['position']),
+                        acceleration=self._optional_float(
+                            value=args.get('acceleration')
+                        ),
+                        max_velocity=self._optional_float(
+                            value=args.get('max_velocity')
+                        ),
+                    )
+                    return self._motor_state(motor=motor), False
+                case 'jog':
+                    motor.jog(
+                        direction=base_motor.MotorDirection(
+                            value=str(args['direction'])
+                        ),
+                        acceleration=self._optional_float(
+                            value=args.get('acceleration')
+                        ),
+                        max_velocity=self._optional_float(
+                            value=args.get('max_velocity')
+                        ),
+                    )
+                    return self._motor_state(motor=motor), False
+                case 'stop':
+                    motor.stop()
+                    return self._motor_state(motor=motor), False
+                case 'update_settings':
+                    motor.update_settings(
+                        acceleration=float(args['acceleration']),
+                        max_velocity=float(args['max_velocity']),
+                    )
+                    return self._motor_state(motor=motor), False
+                case 'disconnect':
+                    self.registry.release(
+                        serial_number=reserved_serial,
+                        owner_id=owner_id
+                    )
+                    return {}, True
 
-        if command == 'get_state':
-            return self._motor_state(motor), False
-        if command == 'move_by':
-            motor.move_by(
-                angle=float(args['angle']),
-                acceleration=self._optional_float(args.get('acceleration')),
-                max_velocity=self._optional_float(args.get('max_velocity')),
-            )
-            return self._motor_state(motor), False
-        if command == 'move_to':
-            motor.move_to(
-                position=float(args['position']),
-                acceleration=self._optional_float(args.get('acceleration')),
-                max_velocity=self._optional_float(args.get('max_velocity')),
-            )
-            return self._motor_state(motor), False
-        if command == 'jog':
-            motor.jog(
-                direction=base_motor.MotorDirection(str(args['direction'])),
-                acceleration=self._optional_float(args.get('acceleration')),
-                max_velocity=self._optional_float(args.get('max_velocity')),
-            )
-            return self._motor_state(motor), False
-        if command == 'stop':
-            motor.stop()
-            return self._motor_state(motor), False
-        if command == 'update_settings':
-            motor.update_settings(
-                acceleration=float(args['acceleration']),
-                max_velocity=float(args['max_velocity']),
-            )
-            return self._motor_state(motor), False
-        if command == 'disconnect':
-            self.registry.release(reserved_serial, owner_id)
-            return {}, True
-
-        raise ValueError(f'Unknown command: {command}')
+                case _:
+                    raise ValueError(f'Unknown command: {command}')
 
     @staticmethod
     def _optional_float(value: typing.Any) -> typing.Optional[float]:
@@ -346,7 +368,11 @@ def main() -> None:
         if k10cr2_motor.is_available()
     )
 
-    server = MotorServer(registrations, port=5001)
+    server = MotorServer(
+        registrations=registrations,
+        host='0.0.0.0',
+        port=5001
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

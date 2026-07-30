@@ -28,7 +28,7 @@ def list_motors(
             'command': 'list_motors',
             'args': {},
         })
-        response = receive_message(sock)
+        response = receive_message(sock=sock)
         if not response.get('ok'):
             error = response.get('error', {})
             raise RemoteMotorError(str(error.get('message', error)))
@@ -102,7 +102,7 @@ class RemoteMotor(base_motor.Motor):
         self.device_info = base_motor.DeviceInfo(
             **result['device_info']
         )
-        self._update_cached_state(result['state'])
+        self._update_cached_state(state=result['state'])
 
         if start_tracking:
             self.start_tracking()
@@ -200,7 +200,7 @@ class RemoteMotor(base_motor.Motor):
             acceleration=acceleration,
             max_velocity=max_velocity,
         )
-        self._update_cached_state(state)
+        self._update_cached_state(state=state)
 
     def move_to(
         self,
@@ -209,12 +209,12 @@ class RemoteMotor(base_motor.Motor):
         max_velocity: typing.Optional[float] = None,
     ) -> None:
         state = self._request(
-            'move_to',
+            command='move_to',
             position=position,
             acceleration=acceleration,
             max_velocity=max_velocity,
         )
-        self._update_cached_state(state)
+        self._update_cached_state(state=state)
 
     def jog(
         self,
@@ -223,16 +223,16 @@ class RemoteMotor(base_motor.Motor):
         max_velocity: typing.Optional[float] = None,
     ) -> None:
         state = self._request(
-            'jog',
+            command='jog',
             direction=direction.value,
             acceleration=acceleration,
             max_velocity=max_velocity,
         )
-        self._update_cached_state(state)
+        self._update_cached_state(state=state)
 
     def stop(self) -> None:
-        state = self._request('stop')
-        self._update_cached_state(state)
+        state = self._request(command='stop')
+        self._update_cached_state(state=state)
 
     def update_settings(
         self,
@@ -240,11 +240,11 @@ class RemoteMotor(base_motor.Motor):
         max_velocity: float,
     ) -> None:
         state = self._request(
-            'update_settings',
+            command='update_settings',
             acceleration=acceleration,
             max_velocity=max_velocity,
         )
-        self._update_cached_state(state)
+        self._update_cached_state(state=state)
 
     def disconnect(self) -> None:
         if self._closed:
@@ -252,7 +252,7 @@ class RemoteMotor(base_motor.Motor):
 
         self.stop_tracking()
         try:
-            self._request('disconnect')
+            self._request(command='disconnect')
         except (ConnectionError, OSError, RemoteMotorError):
             # The server also releases the reservation when the socket vanishes.
             pass
@@ -292,7 +292,7 @@ class RemoteMotor(base_motor.Motor):
                 'command': command,
                 'args': args,
             })
-            response = receive_message(self._sock)
+            response = receive_message(sock=self._sock)
 
             if response.get('id') != request_id:
                 raise RemoteMotorError('Mismatched response id')
@@ -310,8 +310,8 @@ class RemoteMotor(base_motor.Motor):
     def _tracking_loop(self) -> None:
         while not self._tracking_stop_event.is_set():
             try:
-                state = self._request('get_state')
-                self._update_cached_state(state)
+                state = self._request(command='get_state')
+                self._update_cached_state(state=state)
                 with self._state_lock:
                     self._tracking_error = None
                     position = self._position
