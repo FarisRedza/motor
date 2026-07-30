@@ -1,215 +1,358 @@
+from __future__ import annotations
+
+import dataclasses
+import logging
 import socket
 import threading
-import struct
-import enum
-import json
 import typing
+from collections.abc import Callable
 
-from motor.base_motor import Motor
-from motor import dummy_motor, k10cr2_motor, thorlabs_motor, standa_motor
+from motor import base_motor
+from motor.remote_protocol import ProtocolError, receive_message, send_message
+
+MotorFactory = Callable[[], base_motor.Motor]
 
 
-class Command(enum.IntEnum):
-    LIST_DEVICES = 1
-    REQUEST_DEVICE = 2
-    DEVICE_INFO = 3
-    GET_STATUS = 4
-    STOP = 5
-    MOVE_BY = 6
-    MOVE_TO = 7
-    JOG = 8
-    GET_POSITION = 9
+@dataclasses.dataclass(frozen=True)
+class MotorRegistration:
+    serial_number: str
+    device_name: str
+    factory: MotorFactory
 
-class Response(enum.IntEnum):
-    ERROR = 0
-    LIST_DEVICES = 1
-    REQUEST_DEVICE = 2
-    DEVICE_INFO = 3
-    STATUS = 4
-    POSITION = 5
 
-def recvall(size: int, sock: socket.socket) -> bytes:
-    data = bytearray()
-    while len(data) < size:
-        part = sock.recv(size - len(data))
-        if not part:
-            raise ConnectionError('Socket closed')
-        data.extend(part)
-    return data
+@dataclasses.dataclass
+class _Reservation:
+    owner_id: int
+    motor: base_motor.Motor
 
-def receive_command(
-        sock: socket.socket
-) -> tuple[Command, list]:
-    header = recvall(size=8, sock=sock)
-    command_id, num_args = struct.unpack('II', header)
 
-    try:
-        command = Command(command_id)
-    except ValueError:
-        raise ValueError(f'Invalid command ID: {command_id}')
+class MotorRegistry:
+    """Thread-safe collection of available and reserved motors.
 
-    args = []    
-    for _ in range(num_args):
-        arg_len = struct.unpack('I', recvall(size=4, sock=sock))[0]
-        arg = recvall(size=arg_len, sock=sock)
-        args.append(arg.decode(encoding='utf-8'))
+    A motor object is constructed only when a client reserves it. This avoids
+    opening every physical device at server startup and gives each reservation
+    exclusive ownership of the local motor instance.
+    """
 
-    return command, args
+    def __init__(self, registrations: list[MotorRegistration]) -> None:
+        self._registrations = {
+            registration.serial_number: registration
+            for registration in registrations
+        }
+        if len(self._registrations) != len(registrations):
+            raise ValueError('Motor serial numbers must be unique')
 
-def send_message(
-        sock: socket.socket,
-        message: str,
-        response_id: Response
-) -> None:
-    payload = struct.pack(
-        f'I{len(message)}s',
-        len(message),
-        message.encode(encoding='utf-8')
-    )
-    header = struct.pack(
-        'IB',
-        len(payload) + 1,
-        response_id
-    )
-    sock.sendall(header + payload)
+        self._reservations: dict[str, _Reservation] = {}
+        self._lock = threading.Lock()
 
-def send_payload(
-        sock: socket.socket,
-        payload: bytes,
-        response_id: Response
-) -> None:
-    header = struct.pack('IB', len(payload) +1, response_id)
-    sock.sendall(header + payload)
+    def list_motors(self) -> list[dict[str, typing.Any]]:
+        with self._lock:
+            return [
+                {
+                    'serial_number': registration.serial_number,
+                    'device_name': registration.device_name,
+                    'available': serial_number not in self._reservations,
+                }
+                for serial_number, registration
+                in self._registrations.items()
+            ]
 
-def handle_client(
-        sock: socket.socket,
-        address,
-        available_motors: list[tuple[str, str]]
-) -> None:
-    with sock:
+    def reserve(self, serial_number: str, owner_id: int) -> base_motor.Motor:
+        with self._lock:
+            registration = self._registrations.get(serial_number)
+            if registration is None:
+                raise KeyError(f"Motor '{serial_number}' was not found")
+            if serial_number in self._reservations:
+                raise RuntimeError(
+                    f"Motor '{serial_number}' is already reserved"
+                )
+            # Construct while holding the lock so two clients cannot both open
+            # the same physical device between the availability check and the
+            # reservation being recorded.
+            motor = registration.factory()
+            self._reservations[serial_number] = _Reservation(
+                owner_id=owner_id,
+                motor=motor,
+            )
+            return motor
+
+    def release(self, serial_number: str, owner_id: int) -> None:
+        reservation: typing.Optional[_Reservation]
+        with self._lock:
+            reservation = self._reservations.get(serial_number)
+            if reservation is None:
+                return
+            if reservation.owner_id != owner_id:
+                raise RuntimeError('Client does not own this reservation')
+            del self._reservations[serial_number]
+
+        # Do not hold the registry lock during hardware I/O.
         try:
-            motor: typing.Optional[Motor] = None
-            while True:
-                try:
-                    command, args = receive_command(sock=sock)
-                except (ValueError, ConnectionError) as e:
-                    print(f'[{address}] Disconnected: {e}')
-                    break
-                else:
-                    match command:
-                        case Command.LIST_DEVICES:
-                            send_payload(
-                                sock=sock,
-                                payload=json.dumps(available_motors).encode(encoding='utf-8'),
-                                response_id=Response.LIST_DEVICES
-                            )
-                        
-                        case Command.REQUEST_DEVICE:
-                            serial_number = args[0]
-                            if motor is not None:
-                                send_message(
-                                    sock=sock,
-                                    message=f"Motor '{serial_number}' already requested",
-                                    response_id=Response.ERROR
-                                )
-                            else:
-                                try:
-                                    dev_sn, dev_type = next(d for d in available_motors if d[0] == serial_number)
-                                except StopIteration:
-                                    raise ValueError(f"Motor '{serial_number}' not found")
-                                
-                                match dev_type:
-                                    case 'Dummy Motor':
-                                        motor = dummy_motor.DummyMotor()
-                                        send_message(
-                                            sock=sock,
-                                            message=f'Motor successfully requested',
-                                            response_id=Response.REQUEST_DEVICE
-                                        )
-
-                                    case _:
-                                        send_message(
-                                            sock=sock,
-                                            message=f'Unknown motor type: {dev_type}',
-                                            response_id=Response.ERROR
-                                        )
-                        
-                        case Command.MOVE_BY:
-                            angle: float = args[0]
-                            acceleration: float = args[1]
-                            max_velocity: float = args[2]
-
-                            motor.move_by(
-                                angle=angle,
-                                acceleration=acceleration,
-                                max_velocity=max_velocity
-                            )
-
-                            send_message(
-                                sock=sock,
-                                message=f'Moving motor',
-                                response_id=Response.STATUS
-                            )
+            reservation.motor.stop()
+        except Exception:
+            logging.exception('Failed to stop motor during release')
+        try:
+            reservation.motor.disconnect()
+        except Exception:
+            logging.exception('Failed to disconnect motor during release')
 
 
-                        case _:
-                            send_message(
-                                sock=sock,
-                                message=f'Unknown command: {command}',
-                                response_id=Response.ERROR
-                            )
-
-        except Exception as e:
-            print(f'[{address}] Unexpected error: {e}')
-        finally:
-            print(f'Disconnected from {address}')
-
-def start_server(
+class MotorServer:
+    def __init__(
+        self,
+        registrations: list[MotorRegistration],
+        *,
         host: str = '0.0.0.0',
-        port: int = 5002,
-        available_motors: list[tuple[str, str]] = []
-) -> None:
-    sock = socket.socket(
-        family=socket.AF_INET,
-        type=socket.SOCK_STREAM
-    )
-    sock.bind((host, port))
-    sock.listen()
-    print(f'Motor  server listening on {host}:{port}')
-    try:
-        while True:
-            conn, addr = sock.accept()
-            threading.Thread(
-                target=handle_client,
-                args=(conn, addr, available_motors),
-                daemon=True
-            ).start()
+        port: int = 5001,
+        client_timeout: typing.Optional[float] = 30.0,
+    ) -> None:
+        self.host = host
+        self.port = port
+        self.client_timeout = client_timeout
+        self.registry = MotorRegistry(registrations)
+        self._stop_event = threading.Event()
+        self._listen_socket: typing.Optional[socket.socket] = None
 
-    except KeyboardInterrupt:
-        print('Motor server shutting down')
-    finally:
-        sock.close()
-        # for dev in devices:
-        #     dev.disconnect()
+    def serve_forever(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listen_socket:
+            listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listen_socket.bind((self.host, self.port))
+            listen_socket.listen()
+            listen_socket.settimeout(1.0)
+            self._listen_socket = listen_socket
+
+            logging.info('Motor server listening on %s:%s', self.host, self.port)
+            while not self._stop_event.is_set():
+                try:
+                    client_socket, address = listen_socket.accept()
+                except socket.timeout:
+                    continue
+                except OSError:
+                    if self._stop_event.is_set():
+                        break
+                    raise
+
+                threading.Thread(
+                    target=self._handle_client,
+                    args=(client_socket, address),
+                    name=f'motor-client-{address[0]}:{address[1]}',
+                    daemon=True,
+                ).start()
+
+    def shutdown(self) -> None:
+        self._stop_event.set()
+        listen_socket = self._listen_socket
+        if listen_socket is not None:
+            listen_socket.close()
+
+    def _handle_client(
+        self,
+        client_socket: socket.socket,
+        address: tuple[str, int],
+    ) -> None:
+        owner_id = id(client_socket)
+        reserved_serial: typing.Optional[str] = None
+        motor: typing.Optional[base_motor.Motor] = None
+
+        with client_socket:
+            client_socket.settimeout(self.client_timeout)
+            try:
+                while True:
+                    request = receive_message(client_socket)
+                    request_id = request.get('id')
+                    command = request.get('command')
+                    args = request.get('args', {})
+
+                    if not isinstance(request_id, int):
+                        raise ProtocolError('Request id must be an integer')
+                    if not isinstance(command, str):
+                        raise ProtocolError('Command must be a string')
+                    if not isinstance(args, dict):
+                        raise ProtocolError('args must be an object')
+
+                    try:
+                        result, should_close = self._dispatch(
+                            command=command,
+                            args=args,
+                            owner_id=owner_id,
+                            motor=motor,
+                            reserved_serial=reserved_serial,
+                        )
+
+                        if command == 'reserve':
+                            reserved_serial = str(args['serial_number'])
+                            motor = result.pop('_motor')
+                        send_message(client_socket, {
+                            'id': request_id,
+                            'ok': True,
+                            'result': result,
+                        })
+                        if should_close:
+                            break
+                    except Exception as error:
+                        send_message(client_socket, {
+                            'id': request_id,
+                            'ok': False,
+                            'error': {
+                                'type': type(error).__name__,
+                                'message': str(error),
+                            },
+                        })
+            except (ConnectionError, socket.timeout):
+                logging.info('Client %s disconnected', address)
+            except Exception:
+                logging.exception('Client %s failed', address)
+            finally:
+                if reserved_serial is not None:
+                    self.registry.release(reserved_serial, owner_id)
+
+    def _dispatch(
+        self,
+        *,
+        command: str,
+        args: dict[str, typing.Any],
+        owner_id: int,
+        motor: typing.Optional[base_motor.Motor],
+        reserved_serial: typing.Optional[str],
+    ) -> tuple[dict[str, typing.Any], bool]:
+        if command == 'list_motors':
+            return {'motors': self.registry.list_motors()}, False
+
+        if command == 'reserve':
+            if motor is not None:
+                raise RuntimeError('This client already reserved a motor')
+            serial_number = str(args['serial_number'])
+            new_motor = self.registry.reserve(serial_number, owner_id)
+            return {
+                '_motor': new_motor,
+                'device_info': dataclasses.asdict(new_motor.device_info),
+                'state': self._motor_state(new_motor),
+            }, False
+
+        if motor is None or reserved_serial is None:
+            raise RuntimeError('Reserve a motor before issuing this command')
+
+        if command == 'get_state':
+            return self._motor_state(motor), False
+        if command == 'move_by':
+            motor.move_by(
+                angle=float(args['angle']),
+                acceleration=self._optional_float(args.get('acceleration')),
+                max_velocity=self._optional_float(args.get('max_velocity')),
+            )
+            return self._motor_state(motor), False
+        if command == 'move_to':
+            motor.move_to(
+                position=float(args['position']),
+                acceleration=self._optional_float(args.get('acceleration')),
+                max_velocity=self._optional_float(args.get('max_velocity')),
+            )
+            return self._motor_state(motor), False
+        if command == 'jog':
+            motor.jog(
+                direction=base_motor.MotorDirection(str(args['direction'])),
+                acceleration=self._optional_float(args.get('acceleration')),
+                max_velocity=self._optional_float(args.get('max_velocity')),
+            )
+            return self._motor_state(motor), False
+        if command == 'stop':
+            motor.stop()
+            return self._motor_state(motor), False
+        if command == 'update_settings':
+            motor.update_settings(
+                acceleration=float(args['acceleration']),
+                max_velocity=float(args['max_velocity']),
+            )
+            return self._motor_state(motor), False
+        if command == 'disconnect':
+            self.registry.release(reserved_serial, owner_id)
+            return {}, True
+
+        raise ValueError(f'Unknown command: {command}')
+
+    @staticmethod
+    def _optional_float(value: typing.Any) -> typing.Optional[float]:
+        return None if value is None else float(value)
+
+    @staticmethod
+    def _motor_state(motor: base_motor.Motor) -> dict[str, typing.Any]:
+        error = motor.tracking_error
+        direction = getattr(
+            motor,
+            'direction',
+            base_motor.MotorDirection.IDLE,
+        )
+        if not isinstance(direction, base_motor.MotorDirection):
+            direction = base_motor.MotorDirection.IDLE
+
+        return {
+            'position': float(motor.position),
+            'is_moving': bool(motor.is_moving),
+            'direction': direction.value,
+            'step_size': float(getattr(motor, 'step_size', 0.0)),
+            'acceleration': float(getattr(motor, 'acceleration', 0.0)),
+            'max_velocity': float(getattr(motor, 'max_velocity', 0.0)),
+            'tracking_error': None if error is None else str(error),
+        }
+
 
 def main() -> None:
-    available_motors = []
+    from motor import dummy_motor, standa_motor, thorlabs_motor, k10cr2_motor
 
-    available_motors.extend(dummy_motor.list_dummy_motors())
+    registrations = []
 
-    # if thorlabs_motor.is_available():
-    #     motors.extend(thorlabs_motor.list_kinesis_motors())
+    # registrations.extend(MotorRegistration(
+    #         serial_number=serial_number,
+    #         device_name=device_name,
+    #         factory=lambda sn=serial_number: dummy_motor.DummyMotor(
+    #             # serial_number=sn
+    #         ),
+    #     )
+    #     for serial_number, device_name in dummy_motor.list_dummy_motors()
+    # )
 
-    # if k10cr2_motor.is_available():
-    #     motors.extend(k10cr2_motor.list_k10cr2_motors())
-
-    # if standa_motor.is_available():
-    #     motors.extend(standa_motor.list_standa_motors())
-
-    start_server(
-        available_motors=available_motors,
-        port=5001
+    registrations.extend(MotorRegistration(
+            serial_number=serial_number,
+            device_name=device_name,
+            factory=lambda sn=serial_number: standa_motor.StandaMotor(
+                serial_number=sn
+            ),
+        )
+        for serial_number, device_name in standa_motor.list_standa_motors()
+        if standa_motor.is_available()
     )
 
+    registrations.extend(MotorRegistration(
+            serial_number=serial_number,
+            device_name=device_name,
+            factory=lambda sn=serial_number: thorlabs_motor.ThorlabsMotor(
+                serial_number=sn
+            ),
+        )
+        for serial_number, device_name in thorlabs_motor.list_kinesis_motors()
+        if thorlabs_motor.is_available()
+    )
+
+    registrations.extend(MotorRegistration(
+            serial_number=serial_number,
+            device_name=device_name,
+            factory=lambda sn=serial_number: k10cr2_motor.K10CR2Motor(
+                serial_number=sn
+            ),
+        )
+        for serial_number, device_name in k10cr2_motor.list_k10cr2_motors()
+        if k10cr2_motor.is_available()
+    )
+
+    server = MotorServer(registrations, port=5001)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.shutdown()
+
+
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     main()
