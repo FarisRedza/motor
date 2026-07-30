@@ -293,7 +293,6 @@ class RemoteMotor(base_motor.Motor):
                 'args': args,
             })
             response = receive_message(self._sock)
-            print(response)
 
             if response.get('id') != request_id:
                 raise RemoteMotorError('Mismatched response id')
