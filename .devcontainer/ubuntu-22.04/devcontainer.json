@@ -20,7 +20,8 @@
     "runArgs": [
         "--volume=/dev:/dev:rslave",
         "--mount=type=devpts,destination=/dev/pts",
-        "--annotation=run.oci.keep_original_groups=1"
+        "--annotation=run.oci.keep_original_groups=1",
+		"--publish=5001:5001"
     ],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
