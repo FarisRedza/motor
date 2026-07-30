@@ -6,7 +6,13 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio
 
 from motor.base_motor import Motor
-from motor import dummy_motor, k10cr2_motor, thorlabs_motor, standa_motor
+from motor import (
+    dummy_motor,
+    k10cr2_motor,
+    thorlabs_motor,
+    standa_motor,
+    remote_motor
+)
 
 
 class MotorSelectPage(Gtk.Box):
@@ -79,6 +85,7 @@ class MotorSelectPage(Gtk.Box):
 
         self._create_local_devices_group(page=page)
         self._create_remote_connection_group(page=page)
+        # self._create_remote_devices_group(page=page)
 
     def _create_local_devices_group(self, page: Adw.PreferencesPage) -> None:
         group = Adw.PreferencesGroup(
@@ -127,6 +134,9 @@ class MotorSelectPage(Gtk.Box):
             )
 
     def _create_remote_connection_group(self, page: Adw.PreferencesPage) -> None:
+        self._host = '127.0.0.1'
+        self._port = 5001
+
         group = Adw.PreferencesGroup(
             title='Remote Connection'
         )
@@ -136,12 +146,18 @@ class MotorSelectPage(Gtk.Box):
             label='Connect',
             valign=Gtk.Align.CENTER
         )
+        connect_button.connect(
+            'clicked',
+            self.on_connect_server,
+            group,
+            page,
+        )
         group.set_header_suffix(suffix=connect_button)
 
         host_row = Adw.ActionRow(title='Host')
         group.add(child=host_row)
         host_entry = Gtk.Entry(
-            text='127.0.0.1',
+            text=self._host,
             valign=Gtk.Align.CENTER
         )
         host_row.add_suffix(widget=host_entry)
@@ -149,7 +165,75 @@ class MotorSelectPage(Gtk.Box):
         port_row = Adw.ActionRow(title='Port')
         group.add(child=port_row)
         port_entry = Gtk.Entry(
-            text='5002',
+            text=f'{self._port}',
             valign=Gtk.Align.CENTER
         )
         port_row.add_suffix(widget=port_entry)
+
+    def on_connect_server(
+            self,
+            button: Gtk.Button,
+            group: Adw.PreferencesGroup,
+            page: Adw.PreferencesPage
+    ) -> None:
+        page.remove(group=group)
+        self._create_remote_devices_group(page=page)
+
+    def _create_remote_devices_group(self, page: Adw.PreferencesPage) -> None:
+        group = Adw.PreferencesGroup(
+            title='Remote Devices'
+        )
+        page.add(group=group)
+
+        disconnect_button = Gtk.Button(
+            label='Disconnect',
+            valign=Gtk.Align.CENTER
+        )
+        disconnect_button.connect(
+            'clicked',
+            self._on_disconnect,
+            group,
+            page
+        )
+        group.set_header_suffix(
+            suffix=disconnect_button
+        )
+
+        remote_devices = remote_motor.list_motors(
+            host=self._host,
+            port=self._port
+        )
+        for device in remote_devices:
+            device_row = Adw.ActionRow(
+                title=device[1],
+                subtitle=f'Serial number: {device[0]}'
+            )
+            group.add(child=device_row)
+
+            connect_device_button = Gtk.Button(
+                label='Connect',
+                icon_name='go-next-symbolic',
+                css_classes=['flat'],
+                valign=Gtk.Align.CENTER
+            )
+            connect_device_button.connect(
+                'clicked',
+                lambda button,
+                d=device: self.on_connect_local_motor(
+                    button=button,
+                    motor=d
+                )
+            )
+            device_row.add_suffix(widget=connect_device_button)
+            device_row.set_activatable_widget(
+                widget=connect_device_button
+            )
+
+    def _on_disconnect(
+            self,
+            button: Gtk.Button,
+            group: Adw.PreferencesGroup,
+            page: Adw.PreferencesPage
+    ) -> None:
+        page.remove(group=group)
+        self._create_remote_connection_group(page=page)
