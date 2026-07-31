@@ -456,24 +456,24 @@ if __name__ == '__main__':
             tracking_interval=0.05,
         ) as motor:
             print(f'Starting position: {motor.position:.3f}°')
+            print(motor._motor._get_jog_parameters())
+            # # motor.move_by(angle=90)
+            # # motor.move_to(position=90)
+            # motor.jog(
+            #     direction=base_motor.MotorDirection.FORWARD
+            # )
 
-            # motor.move_by(angle=90)
-            # motor.move_to(position=90)
-            motor.jog(
-                direction=base_motor.MotorDirection.FORWARD
-            )
+            # # while motor.is_moving:
+            # for _ in range(10):
+            #     print(
+            #         f'\rPosition: {motor.position:8.3f}°',
+            #         end='',
+            #         flush=True,
+            #     )
+            #     threading.Event().wait(0.5)
+            # motor.stop()
 
-            # while motor.is_moving:
-            for _ in range(10):
-                print(
-                    f'\rPosition: {motor.position:8.3f}°',
-                    end='',
-                    flush=True,
-                )
-                threading.Event().wait(0.5)
-            motor.stop()
-
-            print(f'\nFinal position: {motor.position:.3f}°')
+            # print(f'\nFinal position: {motor.position:.3f}°')
 
     except KeyboardInterrupt:
         print('\nInterrupted')

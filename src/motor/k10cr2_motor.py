@@ -1179,6 +1179,41 @@ class K10CR2Motor(base_motor.Motor):
         with self._state_lock:
             self._is_moving = True
 
+    def jog(
+            self,
+            direction: base_motor.MotorDirection,
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
+    ) -> None:
+        requested_acceleration = (
+            self.acceleration
+            if acceleration is None
+            else acceleration
+        )
+        requested_max_velocity = (
+            self.max_velocity
+            if max_velocity is None
+            else max_velocity
+        )
+
+        # if acceleration is not None or max_velocity is not None:
+        self.update_settings(
+            acceleration=requested_acceleration,
+            max_velocity=requested_max_velocity,
+        )
+
+        with self._motor_lock:
+            self._motor.setup_jog(
+                mode='continuous'
+            )
+            self._motor.jog(
+                direction=direction.value,
+                kind='builtin'
+            )
+        
+        with self._state_lock:
+            self._is_moving = True
+
     def stop(self) -> None:
         """Stop the current movement using normal deceleration."""
         with self._motor_lock:
@@ -1345,3 +1380,33 @@ class K10CR2Motor(base_motor.Motor):
     ) -> None:
         with self._motor_lock:
             self._motor.move_by(distance=angle)
+
+
+if __name__ == '__main__':
+    try:
+        with K10CR2Motor(
+            serial_number='55536714',
+            tracking_interval=0.05,
+        ) as motor:
+            print(f'Starting position: {motor.position:.3f}°')
+
+            # motor.move_by(angle=90)
+            # motor.move_to(position=0)
+            motor.jog(
+                direction=base_motor.MotorDirection.FORWARD
+            )
+
+            # while motor.is_moving:
+            for _ in range(60):
+                print(
+                    f'\rPosition: {motor.position:8.3f}°',
+                    end='',
+                    flush=True,
+                )
+                threading.Event().wait(0.1)
+            motor.stop()
+
+            print(f'\nFinal position: {motor.position:.3f}°')
+
+    except KeyboardInterrupt:
+        print('\nInterrupted')

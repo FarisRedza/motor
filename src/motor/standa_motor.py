@@ -281,6 +281,42 @@ class StandaMotor(base_motor.Motor):
         with self._state_lock:
             self._is_moving = True
 
+    def jog(
+            self,
+            direction: base_motor.MotorDirection,
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
+    ) -> None:
+        requested_acceleration = (
+            self.acceleration
+            if acceleration is None
+            else acceleration
+        )
+        requested_max_velocity = (
+            self.max_velocity
+            if max_velocity is None
+            else max_velocity
+        )
+
+        if acceleration is not None or max_velocity is not None:
+            self.update_settings(
+                acceleration=requested_acceleration,
+                max_velocity=requested_max_velocity,
+            )
+
+        match direction:
+            case base_motor.MotorDirection.BACKWARD:
+                with self._motor_lock:
+                    self._motor.command_left()
+            case base_motor.MotorDirection.FORWARD:
+                with self._motor_lock:
+                    self._motor.command_right()
+            case _:
+                raise ValueError(f'Unknown direction: {direction}')
+
+        with self._state_lock:
+            self._is_moving = True
+
     def stop(self) -> None:
         """Stop the current movement using normal deceleration."""
         with self._motor_lock:
@@ -562,26 +598,30 @@ class StandaMotor(base_motor.Motor):
 
 
 if __name__ == '__main__':
-    print(list_standa_motors())
-    # try:
-    #     with StandaMotor(
-    #         serial_number='37398',
-    #         tracking_interval=0.05,
-    #     ) as motor:
-    #         print(f'Starting position: {motor.position:.3f}°')
+    try:
+        with StandaMotor(
+            serial_number='37398',
+            tracking_interval=0.05,
+        ) as motor:
+            print(f'Starting position: {motor.position:.3f}°')
 
-    #         # motor.move_by(angle=90)
-    #         motor.move_to(position=90)
+            # motor.move_by(angle=90)
+            motor.move_to(position=0)
+            # motor.jog(direction=base_motor.MotorDirection.BACKWARD)
+            # t = 0
 
-    #         while motor.is_moving:
-    #             print(
-    #                 f'\rPosition: {motor.position:8.3f}°',
-    #                 end='',
-    #                 flush=True,
-    #             )
-    #             threading.Event().wait(0.1)
+            while motor.is_moving:
+            # while t < 60:
+                print(
+                    f'\rPosition: {motor.position:8.3f}°',
+                    end='',
+                    flush=True,
+                )
+                threading.Event().wait(0.1)
+                # t += 1
 
-    #         print(f'\nFinal position: {motor.position:.3f}°')
+            motor.stop()
+            print(f'\nFinal position: {motor.position:.3f}°')
 
-    # except KeyboardInterrupt:
-    #     print('\nInterrupted')
+    except KeyboardInterrupt:
+        print('\nInterrupted')

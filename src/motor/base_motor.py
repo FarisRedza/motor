@@ -88,7 +88,7 @@ class Motor(ABC):
     ) -> None:
         raise NotImplementedError
 
-    # @abstractmethod
+    @abstractmethod
     def jog(
             self,
             direction: MotorDirection,

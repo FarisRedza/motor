@@ -4,7 +4,7 @@ import time
 from collections.abc import Callable
 import math
 
-from motor.base_motor import Motor, DeviceInfo
+from motor.base_motor import Motor, DeviceInfo, MotorDirection
 
 
 PositionCallback = Callable[[float], None]
@@ -49,6 +49,9 @@ class DummyMotor(Motor):
         self._move_accel_time = 0.0
         self._move_cruise_time = 0.0
         self._move_total_time = 0.0
+
+        self._motion_mode: typing.Optional[str] = None
+        self._jog_direction = 0.0
 
         self.device_info = DeviceInfo(
             device_name='Dummy Device',
@@ -148,8 +151,10 @@ class DummyMotor(Motor):
             )
 
         with self._motor_lock:
-            # update an existing move before starting the new one
             self._update_motion_locked()
+
+            self._motion_mode = 'move'
+            self._jog_direction = 0.0
 
             self._move_start_time = time.monotonic()
             self._move_start_position = self._position
@@ -183,11 +188,65 @@ class DummyMotor(Motor):
             max_velocity=max_velocity,
         )
 
+    def jog(
+            self,
+            direction: MotorDirection,
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None,
+    ) -> None:
+        requested_acceleration = (
+            self.acceleration
+            if acceleration is None
+            else acceleration
+        )
+        requested_max_velocity = (
+            self.max_velocity
+            if max_velocity is None
+            else max_velocity
+        )
+
+        if acceleration is not None or max_velocity is not None:
+            self.update_settings(
+                acceleration=requested_acceleration,
+                max_velocity=requested_max_velocity,
+            )
+
+        match direction:
+            case MotorDirection.FORWARD:
+                jog_direction = 1.0
+            case MotorDirection.BACKWARD:
+                jog_direction = -1.0
+            case _:
+                raise ValueError(f'Unsupported motor direction: {direction!r}')
+
+        with self._motor_lock:
+            # Capture the final position of any existing motion before
+            # replacing it with the new jog operation.
+            self._update_motion_locked()
+
+            self._motion_mode = 'jog'
+            self._jog_direction = jog_direction
+
+            self._move_start_time = time.monotonic()
+            self._move_start_position = self._position
+            self._move_acceleration = self.acceleration
+            self._move_peak_velocity = self.max_velocity
+
+            # Time required to reach the requested jog velocity.
+            self._move_accel_time = (
+                self.max_velocity
+                / self.acceleration
+            )
+
+            self._is_moving = True
+
     def stop(self) -> None:
         with self._motor_lock:
             self._update_motion_locked()
 
             self._is_moving = False
+            self._motion_mode = None
+            self._jog_direction = 0.0
 
     def disconnect(self) -> None:
         self.stop_tracking()
@@ -221,6 +280,44 @@ class DummyMotor(Motor):
             - self._move_start_time
         )
 
+        if self._motion_mode == 'jog':
+            acceleration = self._move_acceleration
+            max_velocity = self._move_peak_velocity
+            accel_time = self._move_accel_time
+
+            if elapsed < accel_time:
+                # Accelerating from rest.
+                distance = (
+                    0.5
+                    * acceleration
+                    * elapsed ** 2
+                )
+            else:
+                # Distance covered during acceleration.
+                accel_distance = (
+                    0.5
+                    * acceleration
+                    * accel_time ** 2
+                )
+
+                # Continue indefinitely at max velocity.
+                cruise_elapsed = elapsed - accel_time
+
+                distance = (
+                    accel_distance
+                    + max_velocity * cruise_elapsed
+                )
+
+            self._position = (
+                self._move_start_position
+                + self._jog_direction * distance
+            )
+            return
+
+        if self._motion_mode != 'move':
+            self._is_moving = False
+            return
+
         total_distance = abs(self._move_distance)
 
         direction = (
@@ -242,6 +339,7 @@ class DummyMotor(Motor):
             )
 
             self._is_moving = False
+            self._motion_mode = None
             return
 
         if elapsed < accel_time:

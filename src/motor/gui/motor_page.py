@@ -6,7 +6,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib, Gio
 
-from motor.base_motor import Motor
+from motor.base_motor import Motor, MotorDirection
 
 
 GUI_UPDATE_INTERVAL_MS = 50
@@ -146,6 +146,7 @@ class MotorPage(Gtk.Box):
         self.toast_overlay.set_child(child=page)
 
         self._create_status_group(page=page)
+        self._create_continuous_movement_group(page=page)
         self._create_relative_movement_group(page=page)
         self._create_absolute_movement_group(page=page)
         self._create_settings_group(page=page)
@@ -205,6 +206,54 @@ class MotorPage(Gtk.Box):
         group.add(child=self.connection_row)
 
         page.add(group=group)
+
+    def _create_continuous_movement_group(
+        self,
+        page: Adw.PreferencesPage,
+    ) -> None:
+        group = Adw.PreferencesGroup(
+            title='Continuous Movement',
+            description='Rotate continuously in a direction',
+        )
+
+        button_box = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=12,
+            homogeneous=True,
+            margin_top=12,
+        )
+
+        anticlockwise_button = Gtk.Button(
+            label='Anticlockwise',
+            icon_name='object-rotate-left-symbolic',
+        )
+        anticlockwise_button.add_css_class(
+            'suggested-action'
+        )
+        anticlockwise_button.connect(
+            'clicked',
+            self._on_continuous_move_clicked,
+            MotorDirection.BACKWARD,
+        )
+
+        clockwise_button = Gtk.Button(
+            label='Clockwise',
+            icon_name='object-rotate-right-symbolic',
+        )
+        clockwise_button.add_css_class(
+            'suggested-action'
+        )
+        clockwise_button.connect(
+            'clicked',
+            self._on_continuous_move_clicked,
+            MotorDirection.FORWARD,
+        )
+
+        button_box.append(anticlockwise_button)
+        button_box.append(clockwise_button)
+
+        group.add(button_box)
+        page.add(group)
 
     def _create_relative_movement_group(
         self,
@@ -513,6 +562,17 @@ class MotorPage(Gtk.Box):
     ) -> None:
         self._run_motor_command(
             self._motor.stop,
+        )
+
+    def _on_continuous_move_clicked(
+        self,
+        _button: Gtk.Button,
+        direction: MotorDirection,
+    ) -> None:
+        self._run_motor_command(
+            lambda: self._motor.jog(
+                direction=direction,
+            )
         )
 
     def _on_relative_move_clicked(
