@@ -215,3 +215,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+.workshop.lock
+*devcontainer-lock.json
+.venv*

@@ -1,6 +1,8 @@
 import enum
 import dataclasses
 import struct
+import typing
+from abc import ABC, abstractmethod
 
 @dataclasses.dataclass
 class DeviceInfo:
@@ -37,10 +39,12 @@ class DeviceInfo:
             fields.append(value)
         return DeviceInfo(*fields)
 
+
 class MotorDirection(enum.Enum):
     FORWARD = '-'
     BACKWARD = '+'
     IDLE = ''
+
 
 class Commands(enum.Enum):
     LIST_MOTORS = 'list_motors'
@@ -51,8 +55,9 @@ class Commands(enum.Enum):
     THREADED_MOVE_BY = 'threaded_move_by'
     THREADED_MOVE_TO = 'threaded_move_to'
     JOG = 'jog'
-        
-class Motor:
+
+
+class Motor(ABC):
     def __init__(
             self,
             serial_number: str
@@ -65,48 +70,51 @@ class Motor:
         self.acceleration = 0.0
         self.max_velocity = 0.0
 
+    @abstractmethod
     def move_by(
             self,
             angle: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> bool:
-        return True
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
+    ) -> None:
+        raise NotImplementedError
 
+    @abstractmethod
     def move_to(
             self,
             position: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> bool:
-        return True
-    
-    def threaded_move_by(
-            self,
-            angle: float,
-            acceleration: float,
-            max_velocity: float
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
     ) -> None:
-        pass
+        raise NotImplementedError
 
-    def threaded_move_to(
-            self,
-            position: float,
-            acceleration: float,
-            max_velocity: float
-    ) -> None:
-        pass
-
+    @abstractmethod
     def jog(
             self,
             direction: MotorDirection,
-            acceleration: float,
-            max_velocity: float
+            acceleration: typing.Optional[float] = None,
+            max_velocity: typing.Optional[float] = None
     ) -> None:
-        pass
+        raise NotImplementedError
 
+    @abstractmethod
     def stop(self) -> None:
-        pass
+        raise NotImplementedError
 
+    @abstractmethod
     def disconnect(self) -> None:
-        pass
+        raise NotImplementedError
+    
+    @abstractmethod
+    def update_settings(
+        self,
+        acceleration: float,
+        max_velocity: float
+    ) -> None:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def tracking_error(self) -> typing.Optional[Exception]:
+        """Return the most recent tracking error, if one occurred."""
+        raise NotImplementedError

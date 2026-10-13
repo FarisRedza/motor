@@ -1,0 +1,49 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+	"name": "Ubuntu 22.04",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/devcontainers/base:jammy",
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	"features": {
+		"ghcr.io/devcontainers-extra/features/apt-get-packages:1": {
+			"packages": [
+				"python3-venv",
+				"python3-dev",
+				"libadwaita-1-dev",
+				"librsvg2-common"
+			]
+		}
+	},
+
+    "runArgs": [
+        "--volume=/dev:/dev:rslave",
+        "--mount=type=devpts,destination=/dev/pts",
+        "--annotation=run.oci.keep_original_groups=1",
+		"--publish=5001:5001",
+		"--volume=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY}:/tmp/vscode-host-wayland.sock"
+    ],
+	"containerEnv": {
+		"XDG_RUNTIME_DIR": "/tmp/user/1000",
+		"WAYLAND_DISPLAY": "vscode-wayland.sock"
+	},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": "sudo mkdir -p /tmp/user/1000 && sudo chown vscode:vscode /tmp/user/1000 && sudo chmod 700 /tmp/user/1000 && ln -sf /tmp/vscode-host-wayland.sock /tmp/user/1000/vscode-wayland.sock && rm -rf .venv_22.04 && python3 -m venv .venv_22.04 && .venv_22.04/bin/pip install -e .[gui,thorlabs,k10cr2,standa]",
+
+	// Configure tool-specific properties.
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python"
+			]
+		}		
+	}
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}
