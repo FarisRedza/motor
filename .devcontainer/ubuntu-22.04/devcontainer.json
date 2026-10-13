@@ -21,14 +21,19 @@
         "--volume=/dev:/dev:rslave",
         "--mount=type=devpts,destination=/dev/pts",
         "--annotation=run.oci.keep_original_groups=1",
-		"--publish=5001:5001"
+		"--publish=5001:5001",
+		"--volume=${localEnv:XDG_RUNTIME_DIR}/${localEnv:WAYLAND_DISPLAY}:/tmp/vscode-host-wayland.sock"
     ],
+	"containerEnv": {
+		"XDG_RUNTIME_DIR": "/tmp/user/1000",
+		"WAYLAND_DISPLAY": "vscode-wayland.sock"
+	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "rm -rf .venv_22.04 && python3 -m venv .venv_22.04 && .venv_22.04/bin/pip install -e .[gui,thorlabs,k10cr2,standa]",
+	"postCreateCommand": "sudo mkdir -p /tmp/user/1000 && sudo chown vscode:vscode /tmp/user/1000 && sudo chmod 700 /tmp/user/1000 && ln -sf /tmp/vscode-host-wayland.sock /tmp/user/1000/vscode-wayland.sock && rm -rf .venv_22.04 && python3 -m venv .venv_22.04 && .venv_22.04/bin/pip install -e .[gui,thorlabs,k10cr2,standa]",
 
 	// Configure tool-specific properties.
 	"customizations": {
